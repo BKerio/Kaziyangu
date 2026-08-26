@@ -1,21 +1,21 @@
 # Millennium Task Sheet ("Kazi Yangu")
 
-Millennium Solutions E.A Ltd.'s internal task management system — known around the office by its Swahili nickname **"Kazi Yangu"** ("my work"). An internal web app for logging daily work, tracking a sales opportunity pipeline, running an attachee/intern attendance-and-logbook program, and coordinating a small team's calendar — with an optional WhatsApp bot for logging tasks on the go. Originally modelled on a "Master Daily Tasks" spreadsheet.
+Millennium Solutions E.A Ltd.'s internal task management system, known around the office by its Swahili nickname **"Kazi Yangu"** ("my work"). An internal web app for logging daily work, tracking a sales opportunity pipeline, running an attachee/intern attendance-and-logbook program, and coordinating a small team's calendar, with an optional WhatsApp bot for logging tasks on the go. Originally modelled on a "Master Daily Tasks" spreadsheet.
 
-- **Backend:** [backend/](backend/) — Node.js + Express 5 + TypeScript, PostgreSQL via Prisma, JWT auth, Socket.io for realtime notifications.
-- **Frontend:** [frontend/](frontend/) — React 19 + TypeScript + Vite, Tailwind CSS, React Router, TanStack Query, Zustand.
+- **Backend:** [backend/](backend/), Node.js + Express 5 + TypeScript, PostgreSQL via Prisma, JWT auth, Socket.io for realtime notifications.
+- **Frontend:** [frontend/](frontend/), React 19 + TypeScript + Vite, Tailwind CSS, React Router, TanStack Query, Zustand.
 
 ## Features
 
-- **Task logging** — staff log daily work against 12 org verticals (Applications & Databases, Infrastructure, Networking, …), with status, % complete, hours spent, and screenshot/PDF attachments.
-- **Task reminders** — opt-in nudges before a task is due, delivered by SMS, email, and/or WhatsApp, on a repeating schedule until the task is closed or the repeats run out.
-- **Team task view & reports** — managers see the whole team's tasks, plus weekly resource and vertical-summary reports.
-- **Opportunity tracker** — a sales pipeline (New → Qualification → Assigned → Engagement → Proposal → Negotiation → Won/Lost) with per-opportunity activity logs and document attachments.
-- **Attachment (internship) management** — attendance tracking, a daily logbook with supervisor review/rating, managed by supervising staff for their assigned attachees.
-- **Team calendar** — a shared "who's out" out-of-office calendar.
-- **Admin** — user management, org-wide audit log.
-- **WhatsApp bot** (optional) — a conversational flow (Meta Cloud API) for logging tasks from WhatsApp.
-- **Microsoft/Outlook login** (optional) — OAuth account linking and calendar read access.
+- **Task logging**: staff log daily work against 12 org verticals (Applications & Databases, Infrastructure, Networking, …), with status, % complete, hours spent, and screenshot/PDF attachments.
+- **Task reminders**: opt-in nudges before a task is due, delivered by SMS, email, and/or WhatsApp, on a repeating schedule until the task is closed or the repeats run out.
+- **Team task view & reports**: managers see the whole team's tasks, plus weekly resource and vertical-summary reports.
+- **Opportunity tracker**: a sales pipeline (New → Qualification → Assigned → Engagement → Proposal → Negotiation → Won/Lost) with per-opportunity activity logs and document attachments.
+- **Attachment (internship) management**: attendance tracking, a daily logbook with supervisor review/rating, managed by supervising staff for their assigned attachees.
+- **Team calendar**: a shared "who's out" out-of-office calendar.
+- **Admin**: user management, org-wide audit log.
+- **WhatsApp bot** (optional): a conversational flow (Meta Cloud API) for logging tasks from WhatsApp.
+- **Microsoft/Outlook login** (optional): OAuth account linking and calendar read access.
 - Realtime notifications over Socket.io.
 
 ## Tech stack
@@ -27,12 +27,12 @@ Millennium Solutions E.A Ltd.'s internal task management system — known around
 | Data | PostgreSQL + Prisma ORM (`pg` driver adapter) | TanStack Query, Axios |
 | Auth | JWT (`jsonwebtoken`), bcrypt | Zustand session store |
 | Realtime | Socket.io | socket.io-client |
-| Styling | — | Tailwind CSS v4 |
+| Styling | n/a | Tailwind CSS v4 |
 | Other | Zod validation, Multer uploads, Pino logging, Nodemailer | React Hook Form + Zod resolvers, React Router, Recharts, SweetAlert2 |
 
 ## Roles
 
-`SUPER_ADMIN`, `ADMIN`, `STAFF`, `ATTACHEE` — enforced both by backend route guards (`requireRole`) and frontend route guards (`RoleGuard`).
+`SUPER_ADMIN`, `ADMIN`, `STAFF`, `ATTACHEE`, enforced both by backend route guards (`requireRole`) and frontend route guards (`RoleGuard`).
 
 ## Project structure
 
@@ -93,7 +93,7 @@ npx prisma db push     # or migrate, once you have migrations
 npm run dev             # http://localhost:3000
 ```
 
-Required env vars: `DATABASE_URL`, `JWT_SECRET`. Everything else (`PORT`, `HOST`, `NODE_ENV`, `LOG_LEVEL`, `CORS_ORIGIN`, `JWT_EXPIRES_IN`, WhatsApp, SMS, SMTP) is optional — see [backend/.env.example](backend/.env.example); optional integrations stay disabled until their vars are set.
+Required env vars: `DATABASE_URL`, `JWT_SECRET`. Everything else (`PORT`, `HOST`, `NODE_ENV`, `LOG_LEVEL`, `CORS_ORIGIN`, `JWT_EXPIRES_IN`, WhatsApp, SMS, SMTP) is optional, see [backend/.env.example](backend/.env.example); optional integrations stay disabled until their vars are set.
 
 ### Frontend
 
@@ -111,4 +111,4 @@ npm run dev              # Vite dev server
 
 ## Notes
 
-- [backend/docs.md](backend/docs.md) is a historical build log from an earlier, unrelated product (an ambulance-dispatch API) that this service was repurposed from — most of it no longer applies. The Prisma schema and route files are the source of truth for the current API.
+- [backend/docs.md](backend/docs.md) is a historical build log from an earlier, unrelated product (an ambulance-dispatch API) that this service was repurposed from; most of it no longer applies. The Prisma schema and route files are the source of truth for the current API.
