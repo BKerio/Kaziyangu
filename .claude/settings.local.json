@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat /c/Users/brian/AppData/Local/Temp/claude/c--Users-brian-demo/5597e1c6-b9e8-407a-be1f-2022592c8c70/tasks/b7x5bv9xu.output)",
+      "Read(//c/Users/brian/AppData/Local/Temp/claude/c--Users-brian-demo/5597e1c6-b9e8-407a-be1f-2022592c8c70/tasks/**)"
+    ]
+  }
+}

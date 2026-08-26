@@ -1,0 +1,569 @@
+// Organization Task Management System - Database Schema
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN // Full access, all verticals, user management
+  ADMIN // Manage users + see all tasks/reports
+  STAFF // Logs and manages their own tasks
+  ATTACHEE // Attachment/intern candidate - profile managed by admin
+}
+
+// Organizational department - shared by both staff and attachee profiles.
+enum Department {
+  TECHNICAL
+  BUSINESS_DEVELOPMENT
+  FINANCE
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Opportunity tracker enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The sales pipeline's suggested status flow: NEW -> QUALIFICATION -> ASSIGNED
+// -> ENGAGEMENT -> PROPOSAL -> NEGOTIATION -> WON / LOST.
+enum OpportunityStage {
+  NEW
+  QUALIFICATION
+  ASSIGNED
+  ENGAGEMENT
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum OpportunityPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// The engagement-stage touchpoints called out in the tracker spec.
+enum ActivityType {
+  CALL
+  MEETING
+  SITE_VISIT
+  EMAIL
+  REQUIREMENTS_GATHERING
+  OTHER
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Attachment management enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  HALF_DAY
+  ON_LEAVE
+  ABSENT
+}
+
+enum WorkMode {
+  ON_SITE
+  REMOTE
+  HYBRID
+}
+
+enum ReportStatus {
+  PENDING
+  APPROVED
+  NEEDS_REVISION
+  REJECTED
+}
+
+// The 12 organizational verticals a task can belong to (from the Master Daily
+// Tasks sheet's "Task Vertical" column / the Validation sheet's Column A).
+enum TaskVertical {
+  APPLICATIONS_DATABASES // 1. Applications & Databases
+  INFRASTRUCTURE // 2. Infrastructure (Compute & Storage)
+  NETWORKING // 3. Networking (LAN & WAN)
+  POWER_SOLUTIONS // 4. Power Solutions
+  CYBERSECURITY // 5. Cybersecurity Solutions
+  FINANCE // 6. Finance
+  LOGISTICS // 7. Logistics
+  BIDS // 8. Bids
+  ACCOUNT_MANAGEMENT // 9. Account Management
+  TECHNICAL_PRESALES // 10. Technical Presales
+  PROJECT_MANAGEMENT // 11. Project Management
+  ADMINISTRATION // 12. Administration
+}
+
+// Delivery channel for a task reminder - a reminder can fire on more than one
+// at once (e.g. SMS + WhatsApp together).
+enum ReminderChannel {
+  SMS
+  EMAIL
+  WHATSAPP
+}
+
+// Lifecycle of a TaskReminder: SCHEDULED (created, hasn't fired yet) ->
+// ACTIVE (has fired at least once, more repeats still pending) -> DONE
+// (repeatCount reached, or the task was completed) / CANCELLED (user removed it).
+enum ReminderStatus {
+  SCHEDULED
+  ACTIVE
+  DONE
+  CANCELLED
+}
+
+// The task category list from the Validation sheet's Column B.
+enum TaskCategory {
+  DEPLOYMENT
+  SUPPORT_BREAK_FIX
+  PROOF_OF_CONCEPT
+  MAINTENANCE_UPGRADE
+  DESIGN_ARCHITECTURE
+  RECEIVABLES
+  PAYABLES
+  RECONCILIATIONS
+  STATUTORY
+  REPORTING
+  INTRODUCTION
+  QUALIFICATION
+  SUBMISSION
+}
+
+// From the Validation sheet's Column C.
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  RESOLVED
+  BLOCKED
+  COMPLETED_CLOSED
+  ESCALATED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  name         String
+  phone        String?
+  role         Role        @default(STAFF)
+  isActive     Boolean     @default(true) @map("is_active")
+  department   Department? // Org department - set for staff and attachees alike
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  // ── Attachee profile fields (only populated when role = ATTACHEE) ──────────
+  registrationNo  String?   @map("registration_no")
+  course          String?
+  organization    String?   @map("organization") // host company
+  attachmentStart DateTime? @map("attachment_start") @db.Date
+  attachmentEnd   DateTime? @map("attachment_end") @db.Date
+
+  // The staff member (any non-attachee role) assigned to supervise this
+  // attachee - verifies their attendance and reviews their logbook entries.
+  supervisorId String? @map("supervisor_id")
+  supervisor   User?   @relation("SupervisorOfAttachee", fields: [supervisorId], references: [id])
+
+  tasks               WorkTask[]
+  uploadedAttachments            TaskAttachment[]
+  uploadedOpportunityAttachments OpportunityAttachment[]
+  auditLogs           AuditLog[]
+  attendanceRecords   Attendance[] @relation("AttendanceOfAttachee")
+  taskReports         TaskReport[] @relation("ReportsOfAttachee")
+  supervisedAttachees User[]       @relation("SupervisorOfAttachee")
+
+  opportunitiesAssigned Opportunity[]         @relation("OpportunityAssignee")
+  opportunitiesCreated  Opportunity[]         @relation("OpportunityCreatedBy")
+  loggedActivities      OpportunityActivity[] @relation("ActivityLoggedBy")
+  outOfOfficeDays       OutOfOffice[]
+  taskReminders         TaskReminder[]
+
+  microsoftAccount MicrosoftAccount?
+
+  @@index([supervisorId])
+  @@index([phone])
+  @@map("users")
+}
+
+// A user's linked Microsoft (Outlook) account - created once they complete
+// "Login with Outlook" with offline_access granted. Holds only the encrypted
+// refresh token; access tokens are short-lived (~1h) and never persisted -
+// see modules/auth/microsoft-account.service.ts, which re-derives a fresh
+// access token from this on every use and re-encrypts whatever refresh token
+// comes back (Microsoft may rotate it).
+model MicrosoftAccount {
+  id              String @id @default(uuid())
+  refreshTokenEnc String @map("refresh_token_enc")
+  scope           String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("microsoft_accounts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Team Collaboration - shared "who's out" calendar. One row per person per day
+// they've marked themselves as out of office.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model OutOfOffice {
+  id     String   @id @default(uuid())
+  date   DateTime @db.Date
+  reason String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("out_of_office")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Attachment management - Attendance & Logbook (TaskReport)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Attendance {
+  id     String           @id @default(uuid())
+  date   DateTime         @db.Date
+  status AttendanceStatus @default(PRESENT)
+
+  checkInTime  String?  @map("check_in_time")
+  checkOutTime String?  @map("check_out_time")
+  workMode     WorkMode @default(ON_SITE) @map("work_mode")
+  notes        String?  @db.Text
+
+  verifiedBySupervisor Boolean @default(false) @map("verified_by_supervisor")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  attacheeId String @map("attachee_id")
+  attachee   User   @relation("AttendanceOfAttachee", fields: [attacheeId], references: [id])
+
+  @@index([attacheeId])
+  @@index([date])
+  @@map("attendance_records")
+}
+
+model TaskReport {
+  id          String   @id @default(uuid())
+  date        DateTime @db.Date
+  title       String
+  description String   @db.Text
+  learnings   String?  @db.Text
+  category    String?
+  hoursSpent  Float    @default(0) @map("hours_spent")
+
+  status         ReportStatus @default(PENDING)
+  rating         Int?
+  feedback       String?      @db.Text
+  supervisorName String?      @map("supervisor_name")
+  reviewedAt     DateTime?    @map("reviewed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  attacheeId String @map("attachee_id")
+  attachee   User   @relation("ReportsOfAttachee", fields: [attacheeId], references: [id])
+
+  @@index([attacheeId])
+  @@index([date])
+  @@map("task_reports")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Opportunity Tracker - sales pipeline from lead identification through
+// won/lost, with a per-opportunity engagement activity log.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Opportunity {
+  id String @id @default(uuid())
+
+  // ── 1. Opportunity Identified ───────────────────────────────────────────
+  name           String
+  customerName   String   @map("customer_name")
+  contactPerson  String?  @map("contact_person")
+  source         String?
+  dateIdentified DateTime @map("date_identified") @db.Date
+  estimatedValue Float?   @map("estimated_value")
+  description    String?  @db.Text
+
+  stage    OpportunityStage    @default(NEW)
+  priority OpportunityPriority @default(MEDIUM)
+
+  // ── 2. Qualification ─────────────────────────────────────────────────────
+  isGenuine        Boolean? @map("is_genuine")
+  customerNeed     String?  @map("customer_need") @db.Text
+  budgetConfirmed  String?  @map("budget_confirmed")
+  decisionMaker    String?  @map("decision_maker")
+  expectedTimeline String?  @map("expected_timeline")
+  // 0-100, re-set during Negotiation as the "updated probability".
+  probability      Int?
+
+  // ── 3. Assigned ───────────────────────────────────────────────────────────
+  assignedToId String?   @map("assigned_to_id")
+  assignedTo   User?     @relation("OpportunityAssignee", fields: [assignedToId], references: [id])
+  followUpDate DateTime? @map("follow_up_date") @db.Date
+
+  // ── 5. Proposal / Quotation ──────────────────────────────────────────────
+  proposalSubmittedDate DateTime? @map("proposal_submitted_date") @db.Date
+  proposedValue         Float?    @map("proposed_value")
+  expectedClosingDate   DateTime? @map("expected_closing_date") @db.Date
+
+  // ── 6. Negotiation ───────────────────────────────────────────────────────
+  customerFeedback String? @map("customer_feedback") @db.Text
+  revisedValue     Float?  @map("revised_value")
+  negotiationNotes String? @map("negotiation_notes") @db.Text
+  competitors      String?
+
+  // ── 7a. Won ───────────────────────────────────────────────────────────────
+  finalValue     Float?    @map("final_value")
+  contractNumber String?   @map("contract_number")
+  closingDate    DateTime? @map("closing_date") @db.Date
+
+  // ── 7b. Lost ──────────────────────────────────────────────────────────────
+  reasonLost         String? @map("reason_lost") @db.Text
+  competitorSelected String? @map("competitor_selected")
+  lostValue          Float?  @map("lost_value")
+  lessonsLearned     String? @map("lessons_learned") @db.Text
+
+  createdById String @map("created_by_id")
+  createdBy   User   @relation("OpportunityCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  activities  OpportunityActivity[]
+  attachments OpportunityAttachment[]
+
+  @@index([stage])
+  @@index([assignedToId])
+  @@map("opportunities")
+}
+
+// A logged engagement touchpoint (call, meeting, site visit, email, etc.)
+// against an opportunity - the "Engagement" stage's activity trail.
+model OpportunityActivity {
+  id    String       @id @default(uuid())
+  type  ActivityType
+  date  DateTime     @db.Date
+  notes String?      @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  opportunityId String      @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  loggedById String? @map("logged_by_id")
+  loggedBy   User?   @relation("ActivityLoggedBy", fields: [loggedById], references: [id])
+
+  @@index([opportunityId])
+  @@map("opportunity_activities")
+}
+
+// A proposal, RFQ, contract, or other document attached to an opportunity.
+// Prefer PDF and Word (.docx); files live on disk. See
+// modules/opportunities/attachment-storage.ts.
+model OpportunityAttachment {
+  id         String @id @default(uuid())
+  fileName   String @map("file_name")
+  mimeType   String @map("mime_type")
+  bytes      Int
+  storageKey String @map("storage_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  opportunityId String      @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  uploadedById String @map("uploaded_by_id")
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  @@index([opportunityId])
+  @@map("opportunity_attachments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WorkTask - one row per daily task log entry (the "Master_Daily tasks" sheet).
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WorkTask {
+  id String @id @default(uuid())
+
+  // The calendar day this task was worked, independent of createdAt (a task
+  // can be logged after the fact, or for a previous day).
+  date DateTime @db.Date
+
+  vertical        TaskVertical
+  category        TaskCategory
+  description     String       @map("description") @db.Text
+  customerProject String?      @map("customer_project")
+
+  // Stored as "HH:mm" (24h) to match how the sheet records a clock time,
+  // without pulling in timezone handling for a value that's just a label.
+  startTime String? @map("start_time")
+  endTime   String? @map("end_time")
+
+  hoursSpent      Float      @default(0) @map("hours_spent")
+  status          TaskStatus @default(NOT_STARTED)
+  // 0-100
+  percentComplete Int        @default(0) @map("percent_complete")
+
+  keyDeliverable String? @map("key_deliverable") @db.Text
+  blockersNotes  String? @map("blockers_notes") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations - the "Resource Name" the task is logged against.
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  attachments TaskAttachment[]
+  reminder    TaskReminder?
+
+  @@index([userId])
+  @@index([date])
+  @@index([vertical])
+  @@map("work_tasks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TaskReminder - an opt-in nudge for a single WorkTask, fired across one or
+// more channels (SMS/Email/WhatsApp) starting 30 minutes before `dueAt`, then
+// every 10 minutes after that until `repeatCount` sends have gone out or the
+// task is marked COMPLETED_CLOSED (whichever comes first). See
+// modules/reminders/reminder.service.ts for the scheduling logic.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TaskReminder {
+  id          String            @id @default(uuid())
+  // When the task is actually due - independent of WorkTask.date, since a due
+  // time (e.g. "today 7pm") is a deadline, not the day the work gets logged.
+  dueAt       DateTime          @map("due_at")
+  channels    ReminderChannel[]
+  // How many times to send, across all channels together, before stopping.
+  repeatCount Int               @default(1) @map("repeat_count")
+  sentCount   Int               @default(0) @map("sent_count")
+  status      ReminderStatus    @default(SCHEDULED)
+  // Next time the scheduler should fire this reminder; null once DONE/CANCELLED.
+  nextRunAt   DateTime?         @map("next_run_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  taskId String   @unique @map("task_id")
+  task   WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  logs TaskReminderLog[]
+
+  @@index([nextRunAt])
+  @@index([userId])
+  @@map("task_reminders")
+}
+
+// One row per send attempt (one per channel per fire) - lets a staff member
+// (or admin) see what actually went out and whether it failed.
+model TaskReminderLog {
+  id      String          @id @default(uuid())
+  channel ReminderChannel
+  status  String // SENT | FAILED
+  error   String?
+  sentAt  DateTime        @default(now()) @map("sent_at")
+
+  reminderId String       @map("reminder_id")
+  reminder   TaskReminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+
+  @@index([reminderId])
+  @@map("task_reminder_logs")
+}
+
+// A screenshot (or PDF) a staff member attaches to a task as proof of work -
+// uploaded either from the web "Log a Task" form or sent as a photo to the
+// WhatsApp bot mid-flow. Files live on disk; this row just tracks metadata
+// and the storage key. See modules/tasks/attachment-storage.ts.
+model TaskAttachment {
+  id         String @id @default(uuid())
+  fileName   String @map("file_name")
+  mimeType   String @map("mime_type")
+  bytes      Int
+  // Relative path under the attachments storage root (see attachment-storage.ts).
+  storageKey String @map("storage_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  taskId String   @map("task_id")
+  task   WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  uploadedById String @map("uploaded_by_id")
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  @@index([taskId])
+  @@map("task_attachments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BotSession - one row per WhatsApp phone number, tracking where that user is
+// in the task-logging conversation wizard (the "flow") plus whatever partial
+// answers they've given so far ("data"). Looked up/updated on every inbound
+// WhatsApp message; see modules/whatsapp/bot-session.service.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BotSession {
+  id        String   @id @default(uuid())
+  phone     String   @unique
+  flow      String   @default("idle")
+  data      Json     @default("{}")
+  expiresAt DateTime @map("expires_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("bot_sessions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AuditLog
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String // CREATE, UPDATE, DELETE, LOGIN, LOGIN_FAILED, REGISTER
+  subjectType String   @map("subject_type") // WORK_TASK, USER, OPPORTUNITY, ...
+  subjectId   String   @map("subject_id")
+  // Short human-readable line (e.g. "Updated task: Break fixes for the Proxmox
+  // server") so the admin Audit Logs page never needs a per-subjectType join
+  // just to be readable - see modules/audit/audit-log.service.ts.
+  summary     String?
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([subjectType, subjectId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,4 @@
+# Zod validation schemas live here.
+# Each module will add its own schema file, e.g.:
+#   auth.schema.ts
+#   incident.schema.ts
