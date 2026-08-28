@@ -22,7 +22,8 @@ function AttachmentAdminPage() {
         <h2 className="text-2xl font-bold mt-1" style={{ color: 'var(--ink)' }}>Attachment Management</h2>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
           Manage attachee candidates, verify daily attendance, and review logbook submissions.
-        </p>
+        </p>hfh
+        
       </div>
 
       <div className="tabs">
