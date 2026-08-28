@@ -2,6 +2,7 @@ import { AppContext } from '../../context.js';
 import { Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
 import type { User } from '../../generated/prisma/index.js';
 import { CATEGORY_LABELS, STATUS_LABELS, VERTICAL_LABELS } from '../tasks/task-options.js';
+import { MAX_ATTACHMENTS_PER_TASK } from '../tasks/attachment-constants.js';
 import { TaskService } from '../tasks/task.service.js';
 import { TaskAttachmentService } from '../tasks/task-attachment.service.js';
 import { BotSessionService, Session } from './bot-session.service.js';
@@ -26,6 +27,22 @@ function extFromMime(mimeType: string): string {
   const match = /^image\/(jpeg|png|webp|gif)$/.exec(mimeType);
   if (!match) return '';
   return `.${match[1] === 'jpeg' ? 'jpg' : match[1]}`;
+}
+
+interface PendingAttachment {
+  mediaId: string;
+  mimeType: string;
+}
+
+/** Screenshots queued so far for the task being logged - stored as a JSON blob under one session key, since Session.data is a flat string map. */
+function attachmentsFromSession(data: Record<string, string>): PendingAttachment[] {
+  if (!data.attachments) return [];
+  try {
+    const parsed = JSON.parse(data.attachments);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 const LIST_PAGE_SIZE = 9; // WhatsApp lists cap at 10 rows/section; 1 slot reserved for pagination
@@ -435,7 +452,9 @@ export class WhatsAppBotService {
   private async showAddConfirm(to: string, session: Session): Promise<void> {
     const draft = draftFromSession(session.data);
     const hoursLine = draft.hoursSpent != null ? `Hours: *${draft.hoursSpent}*\n` : '';
-    const attachmentLine = session.data.attachmentMediaId ? '📎 Screenshot: *attached*\n' : '';
+    const attachmentCount = attachmentsFromSession(session.data).length;
+    const attachmentLine =
+      attachmentCount > 0 ? `📎 Screenshot${attachmentCount === 1 ? '' : 's'}: *${attachmentCount} attached*\n` : '';
 
     await this.sessions.setFlow(to, 'task_add_confirm');
     await this.client.sendMessage(to, {
@@ -470,8 +489,8 @@ export class WhatsAppBotService {
       });
 
       let attachmentNote = '';
-      if (session.data.attachmentMediaId) {
-        attachmentNote = await this.saveAttachmentFromSession(task.id, user, session);
+      if (attachmentsFromSession(session.data).length > 0) {
+        attachmentNote = await this.saveAttachmentsFromSession(task.id, user, session);
       }
 
       await this.sessions.reset(to);
@@ -485,30 +504,39 @@ export class WhatsAppBotService {
     }
   }
 
-  /** Downloads the screenshot referenced by the session and attaches it to the newly created task. */
-  private async saveAttachmentFromSession(taskId: string, user: User, session: Session): Promise<string> {
-    const mediaId = session.data.attachmentMediaId;
-    const mimeType = session.data.attachmentMime ?? 'application/octet-stream';
-    if (!mediaId) return '';
+  /** Downloads every screenshot queued in the session and attaches each to the newly created task. */
+  private async saveAttachmentsFromSession(taskId: string, user: User, session: Session): Promise<string> {
+    const pending = attachmentsFromSession(session.data);
+    if (pending.length === 0) return '';
 
-    const media = await this.client.downloadMedia(mediaId);
-    if (!media) {
-      return '\n\n⚠️ The screenshot could not be downloaded, but the task was saved without it.';
+    let saved = 0;
+    let failed = 0;
+    for (const [index, att] of pending.entries()) {
+      const media = await this.client.downloadMedia(att.mediaId);
+      if (!media) {
+        failed++;
+        continue;
+      }
+      try {
+        await this.attachments.addFromBuffer(
+          taskId,
+          user.id,
+          media.buffer,
+          media.mimeType || att.mimeType,
+          `whatsapp-screenshot-${index + 1}${extFromMime(media.mimeType || att.mimeType)}`
+        );
+        saved++;
+      } catch (err) {
+        this.app.log.error({ err, taskId }, 'Saving WhatsApp screenshot attachment failed');
+        failed++;
+      }
     }
 
-    try {
-      await this.attachments.addFromBuffer(
-        taskId,
-        user.id,
-        media.buffer,
-        media.mimeType || mimeType,
-        `whatsapp-screenshot${extFromMime(media.mimeType || mimeType)}`
-      );
-      return '\n\n📎 Screenshot attached.';
-    } catch (err) {
-      this.app.log.error({ err, taskId }, 'Saving WhatsApp screenshot attachment failed');
-      return '\n\n⚠️ The screenshot could not be saved, but the task was saved without it.';
+    if (failed === 0) return `\n\n📎 ${saved} screenshot${saved === 1 ? '' : 's'} attached.`;
+    if (saved === 0) {
+      return `\n\n⚠️ ${failed} screenshot${failed === 1 ? '' : 's'} could not be saved, but the task was saved without ${failed === 1 ? 'it' : 'them'}.`;
     }
+    return `\n\n📎 ${saved} screenshot${saved === 1 ? '' : 's'} attached (${failed} failed to save).`;
   }
 
   private async handleMenuAction(to: string, user: User, actionId: string): Promise<void> {
@@ -719,23 +747,52 @@ export class WhatsAppBotService {
     await this.sessions.setFlow(to, 'task_add_attachment');
     await this.client.sendMessage(to, {
       type: 'text',
-      text: 'Optional: send a *screenshot* as proof of work, or type *skip* to continue without one.',
+      text:
+        `Optional: send one or more *screenshots* as proof of work (up to ${MAX_ATTACHMENTS_PER_TASK}, one at a time), ` +
+        'or type *skip* to continue without any.',
     });
   }
 
   private async stepAddAttachment(to: string, normalized: string): Promise<void> {
-    if (normalized === 'skip') {
+    if (normalized === 'skip' || normalized === 'done') {
       await this.showAddConfirm(to, await this.sessions.get(to));
       return;
     }
-    await this.client.sendMessage(to, { type: 'text', text: 'Send a photo as proof of work, or type *skip* to continue.' });
+    const session = await this.sessions.get(to);
+    const count = attachmentsFromSession(session.data).length;
+    await this.client.sendMessage(to, {
+      type: 'text',
+      text:
+        count > 0
+          ? `You've attached ${count} screenshot${count === 1 ? '' : 's'} so far. Send another photo, or type *done* to continue.`
+          : 'Send a photo as proof of work, or type *skip* to continue.',
+    });
   }
 
   private async stepAddAttachmentImage(to: string, message: ImageMessage): Promise<void> {
-    await this.sessions.setData(to, 'attachmentMediaId', message.image.id);
-    await this.sessions.setData(to, 'attachmentMime', message.image.mime_type);
-    await this.client.sendMessage(to, { type: 'text', text: '📎 Screenshot received.' });
-    await this.showAddConfirm(to, await this.sessions.get(to));
+    const session = await this.sessions.get(to);
+    const pending = attachmentsFromSession(session.data);
+
+    if (pending.length >= MAX_ATTACHMENTS_PER_TASK) {
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: `You've reached the ${MAX_ATTACHMENTS_PER_TASK}-screenshot limit for a task. Type *done* to continue.`,
+      });
+      return;
+    }
+
+    const updated = [...pending, { mediaId: message.image.id, mimeType: message.image.mime_type }];
+    await this.sessions.setData(to, 'attachments', JSON.stringify(updated));
+
+    const remaining = MAX_ATTACHMENTS_PER_TASK - updated.length;
+    await this.client.sendMessage(to, {
+      type: 'text',
+      text:
+        `📎 Screenshot ${updated.length} received.\n\n` +
+        (remaining > 0
+          ? `Send another, or type *done* to continue (up to ${remaining} more).`
+          : `That's the limit of ${MAX_ATTACHMENTS_PER_TASK}. Type *done* to continue.`),
+    });
   }
 
   private async stepAddConfirm(to: string, user: User, normalized: string, session: Session): Promise<void> {

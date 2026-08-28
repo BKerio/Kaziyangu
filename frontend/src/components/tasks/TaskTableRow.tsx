@@ -108,7 +108,7 @@ function TaskTableRow({
             <Paperclip size={12} /> {t._count.attachments}
           </button>
         ) : (
-          <span style={{ color: 'var(--muted-2)' }}>—</span>
+          <span style={{ color: 'var(--muted-2)' }}>-</span>
         )}
       </td>
 

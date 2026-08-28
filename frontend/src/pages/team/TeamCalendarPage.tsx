@@ -148,7 +148,7 @@ function OutPersonMark({
   return (
     <div
       className="col"
-      title={`${name} — ${note}`}
+      title={`${name}: ${note}`}
       style={{
         alignItems: compact ? 'flex-start' : 'center',
         gap: compact ? 2 : 4,
@@ -475,7 +475,7 @@ function TeamCalendarPage() {
       addNotification({
         type: 'warning',
         title: 'Mixed selection',
-        message: 'Select only days to mark out, or only days to unmark — not both.',
+        message: 'Select only days to mark out, or only days to unmark, not both.',
       });
       return;
     }
@@ -603,14 +603,14 @@ function TeamCalendarPage() {
                   title={
                     isPast
                       ? dayEntries.length > 0
-                        ? dayEntries.map((e) => `${e.user.name}${e.reason ? ` — ${e.reason}` : ''}`).join('\n')
+                        ? dayEntries.map((e) => `${e.user.name}${e.reason ? ` (${e.reason})` : ''}`).join('\n')
                         : 'Past dates cannot be changed'
                       : multiSelect
                         ? isSelected
                           ? 'Click to deselect'
                           : 'Click to select'
                         : dayEntries.length > 0
-                          ? dayEntries.map((e) => `${e.user.name}${e.reason ? ` — ${e.reason}` : ''}`).join('\n')
+                          ? dayEntries.map((e) => `${e.user.name}${e.reason ? ` (${e.reason})` : ''}`).join('\n')
                           : 'Click to mark yourself out'
                   }
                   className="col"
@@ -757,7 +757,7 @@ function TeamCalendarPage() {
           )}
         </div>
 
-        {/* Side panel — focused day + month overview */}
+        {/* Side panel: focused day + month overview */}
         <div className="col" style={{ gap: 16 }}>
           <div className="card card-pad col" style={{ gap: 12 }}>
             <div className="flex items-center justify-between" style={{ gap: 8 }}>

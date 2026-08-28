@@ -185,6 +185,12 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+], {
+  // The production build is served under /app (see vite build --base=/app/
+  // and the nginx location that proxies it) - without this, browser-history
+  // navigation would rewrite the address bar to bare paths like /team-tasks,
+  // which nginx doesn't know about, and a refresh there 404s.
+  basename: import.meta.env.BASE_URL,
+});
 
 export default router;

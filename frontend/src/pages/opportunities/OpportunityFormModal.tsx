@@ -192,7 +192,7 @@ function OpportunityFormModal({ staff, onClose, onCreated }: {
             />
             <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
               <Paperclip size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
-              PDF or Word (.docx) — up to {MAX_ATTACHMENTS} files, 10MB each.
+              PDF or Word (.docx), up to {MAX_ATTACHMENTS} files, 10MB each.
             </span>
             {fileError && <span className="field-error">{fileError}</span>}
             {files.length > 0 && (
