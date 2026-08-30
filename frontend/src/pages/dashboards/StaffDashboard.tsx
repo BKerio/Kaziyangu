@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ListTodo, CheckCircle2, Server, Wrench, Bug, Target, Handshake, FileText,
   Wallet, Receipt, Scale, ClipboardList, TrendingUp, UserCog, Clock, Mail, Phone,
+  Briefcase, FileSignature, Percent,
 } from 'lucide-react';
 import api from '@/api/client';
 import { getMyProfile } from '@/api/account';
@@ -41,6 +42,15 @@ const DEPARTMENT_THEME: Record<Department, { label: string; accent: string; tile
       { icon: Wallet, title: 'Receivables', hint: 'Track incoming payments' },
       { icon: Receipt, title: 'Payables', hint: 'Log outgoing invoices' },
       { icon: Scale, title: 'Reconciliations', hint: 'Match statements & ledgers' },
+    ],
+  },
+  COMMERCIAL: {
+    label: 'Commercial',
+    accent: '#0D9488',
+    tiles: [
+      { icon: Briefcase, title: 'Client Contracts', hint: 'Manage commercial agreements & terms' },
+      { icon: FileSignature, title: 'Quotations', hint: 'Prepare & send commercial quotes' },
+      { icon: Percent, title: 'Pricing & Margins', hint: 'Review deal pricing and margins' },
     ],
   },
 };
@@ -194,7 +204,7 @@ function StaffDashboard() {
               <p className="text-xs" style={{ color: 'var(--muted)' }}>Log delivery & support work</p>
             </div>
           </Link>
-          {profile?.department === 'BUSINESS_DEVELOPMENT' && (
+          {(profile?.department === 'BUSINESS_DEVELOPMENT' || profile?.department === 'COMMERCIAL') && (
             <Link to="/opportunities" className="flex items-center gap-3" style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', textDecoration: 'none' }}>
               <div className="flex items-center justify-center" style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--red-soft)', color: 'var(--red)' }}>
                 <Target size={16} />

@@ -20,7 +20,7 @@ const createSchema = z.object({
   passwordRaw: z.string().min(8, 'At least 8 characters'),
   name: z.string().min(2, 'Name is required'),
   role: z.enum(['STAFF', 'ADMIN', 'SUPER_ADMIN']),
-  department: z.enum(['TECHNICAL', 'BUSINESS_DEVELOPMENT', 'FINANCE']),
+  department: z.enum(['TECHNICAL', 'BUSINESS_DEVELOPMENT', 'FINANCE', 'COMMERCIAL']),
   phone: z.string().optional(),
 });
 type CreateForm = z.infer<typeof createSchema>;
@@ -30,7 +30,7 @@ const editSchema = z.object({
   email: z.string().email('Invalid email'),
   phone: z.string().optional(),
   role: z.enum(['STAFF', 'ADMIN', 'SUPER_ADMIN']),
-  department: z.enum(['TECHNICAL', 'BUSINESS_DEVELOPMENT', 'FINANCE']),
+  department: z.enum(['TECHNICAL', 'BUSINESS_DEVELOPMENT', 'FINANCE', 'COMMERCIAL']),
   password: z.string().optional(),
 });
 type EditForm = z.infer<typeof editSchema>;
