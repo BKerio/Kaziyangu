@@ -131,7 +131,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           </div>
           <div className="brand-text">
             <b>Task Manager</b>
-            <span className="brand-org">Organization Workspace</span>
+            <span className="brand-org">Millenium Workspace</span>
           </div>
         </div>
 
