@@ -1,0 +1,51 @@
+name: Deploy
+
+# Auto-deploys to the production server on every push to master, or on
+# demand from the Actions tab. Pulls the new code on the server and rebuilds
+# in place - see the note above the script below for what this deliberately
+# does NOT do.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /var/www/app
+
+            git fetch origin master
+            git reset --hard origin/master
+
+            echo "--- backend ---"
+            cd backend
+            npm install
+            npm run build
+
+            echo "--- frontend ---"
+            cd ../frontend
+            npm install
+            npx vite build
+
+            echo "--- restart ---"
+            pm2 restart app-backend
+
+            echo "Deploy complete: $(git rev-parse --short HEAD)"
+
+            # Deliberately NOT run here: `prisma db push`. This project's
+            # DATABASE_URL is Supabase's pooled (pgbouncer) connection string,
+            # which schema-push operations don't handle well (it hangs - see
+            # the deploy history for this repo). If a change touches
+            # prisma/schema.prisma, push the schema from a machine using the
+            # direct (non-pooled) connection string before merging, or run
+            # `npx prisma db push` by hand from a shell that has it.
