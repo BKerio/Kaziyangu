@@ -75,8 +75,8 @@ const menuSections: { title?: string; items: NavItem[] }[] = [
   {
     title: 'Account',
     items: [
-      { label: 'My Calendar', path: '/my-calendar', Icon: Calendar, roles: [...ALL_ROLES, ...ATTACHEE_ROLE] },
-      { label: 'My Profile', path: '/profile', Icon: UserCog, roles: [...ALL_ROLES, ...ATTACHEE_ROLE] },
+      { label: 'My Work Calendar', path: '/my-calendar', Icon: Calendar, roles: [...ALL_ROLES, ...ATTACHEE_ROLE] },
+      { label: 'Profile Yangu', path: '/profile', Icon: UserCog, roles: [...ALL_ROLES, ...ATTACHEE_ROLE] },
     ],
   },
 ];
