@@ -16,10 +16,10 @@ import {
   Target,
   LayoutDashboard,
   CalendarDays,
-  BrainCircuit,
   Calendar,
   BellRing,
   ScrollText,
+  ClockFading,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { confirmAndSignOut } from '@/lib/session';
@@ -46,7 +46,7 @@ const menuSections: { title?: string; items: NavItem[] }[] = [
       { label: 'Team Tasks', path: '/team-tasks', Icon: ListChecks, roles: MANAGER_ROLES },
       { label: 'Opportunity Tracker', path: '/opportunities', Icon: Target, roles: ALL_ROLES },
       { label: 'Team Collaboration', path: '/team-calendar', Icon: CalendarDays, roles: ALL_ROLES },
-      { label: 'Time Balance', path: '/time-balance', Icon: BrainCircuit, roles: ALL_ROLES },
+      { label: 'Time Balance', path: '/time-balance', Icon: ClockFading, roles: ALL_ROLES },
     ],
   },
   {
