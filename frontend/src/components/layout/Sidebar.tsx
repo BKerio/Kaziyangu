@@ -132,6 +132,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           <div className="brand-text">
             <span className="brand-word-your">Your Task,</span>
             <span className="brand-word-my">My Task</span>
+
             <span className="brand-org">Millenium Solutions E.A Limited</span>
           </div>
         </div>
