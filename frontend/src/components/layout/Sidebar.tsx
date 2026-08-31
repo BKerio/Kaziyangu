@@ -127,7 +127,7 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
           <div className="brand-logo">
-            <img src={logo} alt="Millenium Solutions" />
+            <img src={logo} draggable={false} alt="Millenium Solutions" />
           </div>
           <div className="brand-text">
             <b>Task Manager</b>
