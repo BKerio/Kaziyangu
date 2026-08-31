@@ -84,12 +84,15 @@ function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card fade-up">
-        {/* Brand header */}
-        <div className="login-cobrand" style={{ justifyContent: 'center' }}>
-          <img src={logo} draggable={false} alt="Millenium Solutions" style={{ height: 52, width: 'auto' }} />
+      {/* Hero brand mark */}
+      <div className="login-logo-wrap">
+        <span className="login-logo-glow" aria-hidden />
+        <div className="login-logo-badge">
+          <img src={logo} draggable={false} alt="Millenium Solutions" />
         </div>
+      </div>
 
+      <div className="login-card fade-up">
         {/* Form body */}
         <div className="login-body">
           <h1 className="login-title">Sign in to your workspace</h1>
