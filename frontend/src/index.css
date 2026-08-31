@@ -174,6 +174,31 @@ h1, h2 { font-family: var(--font-display); }
   border: 1px solid var(--border); background: var(--surface);
   color: var(--ink-2); cursor: pointer; transition: all .15s; flex-shrink: 0;
 }
+
+/* Notification bell - a bigger dedicated hit target plus an animated unread
+   count badge (an expanding "ping" ring under a bouncy number chip), instead
+   of a bare dot. */
+.notif-btn { width: 46px; height: 46px; }
+.notif-btn.has-unread:hover { box-shadow: 0 0 0 4px var(--red-soft); border-color: var(--red); }
+@keyframes notifPing { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(2.4); opacity: 0; } }
+.notif-ping {
+  position: absolute; top: 3px; right: 3px; width: 19px; height: 19px;
+  border-radius: 999px; background: var(--red);
+  animation: notifPing 1.7s cubic-bezier(0,0,.2,1) infinite;
+  pointer-events: none;
+}
+@keyframes notifBadgePop { 0% { transform: scale(0); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
+.notif-badge {
+  position: absolute; top: 3px; right: 3px;
+  min-width: 19px; height: 19px; padding: 0 5px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--green-bright), var(--red));
+  color: #fff; font-size: 10.5px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+  border: 2px solid var(--surface);
+  box-shadow: 0 2px 6px rgba(214,40,40,.45);
+  animation: notifBadgePop .45s cubic-bezier(.34,1.56,.64,1) both;
+}
 .icon-btn:hover { background: var(--surface-2); color: var(--ink); border-color: var(--border-strong); }
 
 /* ── SweetAlert2 (see src/lib/alert.ts) ── */

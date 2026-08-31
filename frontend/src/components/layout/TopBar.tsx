@@ -73,20 +73,17 @@ function TopBar({ theme, onThemeToggle, onToggleSidebar }: TopBarProps) {
         </button>
 
         <button
-          className="icon-btn"
+          className={`icon-btn notif-btn${unreadCount > 0 ? ' has-unread' : ''}`}
           style={{ position: 'relative' }}
           onClick={() => setIsNotificationOpen(true)}
-          title="Notifications"
+          title={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}` : 'Notifications'}
         >
-          <Bell size={18} />
+          <Bell size={24} />
           {unreadCount > 0 && (
-            <span
-              style={{
-                position: 'absolute', top: 6, right: 6,
-                width: 8, height: 8, borderRadius: '99px',
-                background: 'var(--red)', border: '1.5px solid var(--surface)',
-              }}
-            />
+            <>
+              <span className="notif-ping" aria-hidden />
+              <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+            </>
           )}
         </button>
 
