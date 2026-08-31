@@ -31,6 +31,7 @@ const DEPARTMENT_COLORS: Record<string, string> = {
   BUSINESS_DEVELOPMENT: '#2563EB',
   FINANCE: '#D4A017',
   COMMERCIAL: '#0D9488',
+  ADMIN: '#7C3AED',
   UNASSIGNED: '#94A099',
 };
 

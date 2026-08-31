@@ -28,6 +28,7 @@ enum Department {
   BUSINESS_DEVELOPMENT
   FINANCE
   COMMERCIAL
+  ADMIN
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ListTodo, CheckCircle2, Server, Wrench, Bug, Target, Handshake, FileText,
   Wallet, Receipt, Scale, ClipboardList, TrendingUp, UserCog, Clock, Mail, Phone,
-  Briefcase, FileSignature, Percent,
+  Briefcase, FileSignature, Percent, CalendarClock, Users, Archive,
 } from 'lucide-react';
 import api from '@/api/client';
 import { getMyProfile } from '@/api/account';
@@ -51,6 +51,15 @@ const DEPARTMENT_THEME: Record<Department, { label: string; accent: string; tile
       { icon: Briefcase, title: 'Client Contracts', hint: 'Manage commercial agreements & terms' },
       { icon: FileSignature, title: 'Quotations', hint: 'Prepare & send commercial quotes' },
       { icon: Percent, title: 'Pricing & Margins', hint: 'Review deal pricing and margins' },
+    ],
+  },
+  ADMIN: {
+    label: 'Admin',
+    accent: '#7C3AED',
+    tiles: [
+      { icon: CalendarClock, title: 'Scheduling', hint: 'Coordinate meetings & office calendars' },
+      { icon: Users, title: 'Staff & HR Support', hint: 'Handle onboarding and staff requests' },
+      { icon: Archive, title: 'Records & Filing', hint: 'Keep correspondence and files organized' },
     ],
   },
 };

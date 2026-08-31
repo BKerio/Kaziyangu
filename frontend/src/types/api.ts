@@ -10,13 +10,14 @@ export interface MicrosoftCalendarEvent {
   webLink: string;
 }
 
-export type Department = 'TECHNICAL' | 'BUSINESS_DEVELOPMENT' | 'FINANCE' | 'COMMERCIAL';
+export type Department = 'TECHNICAL' | 'BUSINESS_DEVELOPMENT' | 'FINANCE' | 'COMMERCIAL' | 'ADMIN';
 
 export const DEPARTMENT_OPTIONS: { value: Department; label: string }[] = [
   { value: 'TECHNICAL', label: 'Technical' },
   { value: 'BUSINESS_DEVELOPMENT', label: 'Business Development' },
   { value: 'FINANCE', label: 'Finance' },
   { value: 'COMMERCIAL', label: 'Commercial' },
+  { value: 'ADMIN', label: 'Admin' },
 ];
 
 export type TaskVertical =

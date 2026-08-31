@@ -19,7 +19,7 @@ const createSchema = z.object({
   passwordRaw: z.string().min(6, 'At least 6 characters'),
   registrationNo: z.string().min(1, 'Registration number is required'),
   course: z.string().min(1, 'Course is required'),
-  department: z.enum(['TECHNICAL', 'BUSINESS_DEVELOPMENT', 'FINANCE', 'COMMERCIAL']),
+  department: z.enum(['TECHNICAL', 'BUSINESS_DEVELOPMENT', 'FINANCE', 'COMMERCIAL', 'ADMIN']),
   organization: z.string().min(1, 'Host organization is required'),
   // '' = unassigned; a real select value is a staff member's id.
   supervisorId: z.string().optional(),
