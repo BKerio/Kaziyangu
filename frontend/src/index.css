@@ -769,6 +769,26 @@ h1, h2 { font-family: var(--font-display); }
 .login-card { width: 100%; max-width: 428px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
 .login-cobrand { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 26px 28px; background: #fff; border-bottom: 1px solid var(--border); }
 .login-cobrand-div { width: 1px; height: 40px; background: #E3E8E5; }
+/* Same two-voice wordmark treatment as the sidebar's brand-word-your/my,
+   re-colored for this bar's white background instead of the dark navy rail. */
+.login-word-your {
+  font-family: var(--font-display);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.login-word-my {
+  font-family: 'Caveat', var(--font-display), cursive;
+  color: var(--green);
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: -3px;
+  transform: rotate(-4deg);
+  transform-origin: left center;
+}
 .login-body { padding: 28px 30px 26px; }
 .login-kicker-pill { margin-bottom: 12px; }
 .login-title { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 5px; color: var(--ink); }
