@@ -87,7 +87,7 @@ function LoginPage() {
       <div className="login-card fade-up">
         {/* Brand header */}
         <div className="login-cobrand" style={{ justifyContent: 'center' }}>
-          <img src={logo} alt="Millenium Solutions" style={{ height: 52, width: 'auto' }} />
+          <img src={logo} draggable={false} alt="Millenium Solutions" style={{ height: 52, width: 'auto' }} />
         </div>
 
         {/* Form body */}

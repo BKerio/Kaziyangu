@@ -130,7 +130,8 @@ function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             <img src={logo} draggable={false} alt="Millenium Solutions" />
           </div>
           <div className="brand-text">
-            <b>Your Task, My Task</b>
+            <span className="brand-word-your">Your Task,</span>
+            <span className="brand-word-my">My Task</span>
             <span className="brand-org">Millenium Solutions E.A Limited</span>
           </div>
         </div>

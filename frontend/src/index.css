@@ -479,8 +479,29 @@ h1, h2 { font-family: var(--font-display); }
 }
 .brand-logo img { height: 60%; width: 60%; object-fit: contain; display: block; }
 .brand-text { display: flex; flex-direction: column; align-items: center; overflow: hidden; white-space: nowrap; }
-.brand-text b { font-family: var(--font-display); color: #fff; font-size: 15px; font-weight: 700; letter-spacing: .01em; }
-.brand-org { color: var(--nav-ink); font-size: 11px; font-weight: 700; letter-spacing: .06em; margin-top: 4px; }
+/* Wordmark: a structured, tracked-out "Your Task," handing off to a loose,
+   handwritten "My Task" - the switch in voice (corporate -> personal) mirrors
+   what the phrase itself is saying. */
+.brand-word-your {
+  font-family: var(--font-display);
+  color: var(--nav-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.brand-word-my {
+  font-family: 'Caveat', var(--font-display), cursive;
+  color: var(--nav-active);
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: -3px;
+  transform: rotate(-4deg);
+  transform-origin: left center;
+  text-shadow: 0 1px 0 rgba(0,0,0,.25);
+}
+.brand-org { color: var(--nav-ink); font-size: 11px; font-weight: 700; letter-spacing: .06em; margin-top: 6px; }
 .brand-tag { color: var(--nav-muted); font-size: 10px; font-weight: 600; letter-spacing: .09em; margin-top: 10px; }
 .sidebar-collapse-btn {
   position: absolute; top: 12px; right: 12px; background: transparent; border: 0; color: var(--nav-muted);
