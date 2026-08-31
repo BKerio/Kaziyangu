@@ -92,7 +92,20 @@ export function authRoutes(ctx: AppContext): Router {
     const microsoftAccounts = new MicrosoftAccountService(ctx, microsoft);
     // Where to send the browser back to once we're done - falls back to the
     // typical local dev origin when CORS_ORIGIN isn't a real URL (e.g. "*").
-    const frontendOrigin = ctx.config.CORS_ORIGIN.startsWith('http') ? ctx.config.CORS_ORIGIN : 'http://localhost:5173';
+    // That fallback is a local-dev convenience only: in any other environment
+    // it silently strands every user on their own localhost after a
+    // successful Microsoft login, with no error surfaced anywhere - so warn
+    // loudly at startup instead of failing silently at request time.
+    const frontendOriginConfigured = ctx.config.CORS_ORIGIN.startsWith('http');
+    const frontendOrigin = frontendOriginConfigured ? ctx.config.CORS_ORIGIN : 'http://localhost:5173';
+    if (!frontendOriginConfigured) {
+      ctx.log.warn(
+        { corsOrigin: ctx.config.CORS_ORIGIN },
+        'Microsoft login is enabled but CORS_ORIGIN is not a real URL - post-login redirects will fall back to ' +
+          'http://localhost:5173, which only works for local development. Set CORS_ORIGIN to this server\'s ' +
+          'actual frontend URL (e.g. https://app.example.com) in any deployed environment.'
+      );
+    }
 
     router.get('/microsoft/login', (req, res) => {
       const redirectPath = safeRedirectPath(req.query.redirect);
