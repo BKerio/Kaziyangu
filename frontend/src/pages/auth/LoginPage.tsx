@@ -84,8 +84,9 @@ function LoginPage() {
     <div className="login-page">
       <div className="login-card fade-up">
         {/* Brand header */}
-        <div className="login-cobrand" style={{ justifyContent: 'center', gap: 14 }}>
-          <img src={logo} draggable={false} alt="Millenium Solutions" style={{ height: 52, width: 'auto' }} />
+        <div className="login-cobrand">
+          <img src={logo} draggable={false} alt="Millenium Solutions" style={{ height: 84, width: 'auto' }} />
+          <div className="login-cobrand-div" />
           <div className="col" style={{ alignItems: 'flex-start' }}>
             <span className="login-word-your">Your Task,</span>
             <span className="login-word-my">My Task</span>

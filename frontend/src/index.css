@@ -767,27 +767,52 @@ h1, h2 { font-family: var(--font-display); }
   padding: 24px; gap: 18px; background: radial-gradient(110% 70% at 50% -10%, color-mix(in srgb, var(--green) 8%, transparent), transparent 60%), var(--bg);
 }
 .login-card { width: 100%; max-width: 428px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
-.login-cobrand { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 26px 28px; background: #fff; border-bottom: 1px solid var(--border); }
-.login-cobrand-div { width: 1px; height: 40px; background: #E3E8E5; }
+.login-cobrand {
+  display: flex; align-items: center; justify-content: center; gap: 20px; padding: 40px 28px 36px;
+  background: radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--green) 6%, transparent), transparent 65%), #fff;
+  border-bottom: 1px solid var(--border);
+}
+.login-cobrand-div { width: 1px; height: 64px; background: var(--border); flex-shrink: 0; }
+@keyframes loginLogoPop { from { opacity: 0; transform: scale(.75); } to { opacity: 1; transform: scale(1); } }
+.login-cobrand img { animation: loginLogoPop .5s cubic-bezier(.16,1,.3,1) both; }
+
 /* Same two-voice wordmark treatment as the sidebar's brand-word-your/my,
-   re-colored for this bar's white background instead of the dark navy rail. */
+   re-colored for this bar's white background and scaled up as the header's
+   hero element - "My Task" gets a hand-drawn highlighter stroke underneath,
+   like the word's been circled for emphasis. */
+@keyframes loginWordSlide { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
 .login-word-your {
   font-family: var(--font-display);
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: .16em;
+  letter-spacing: .18em;
   text-transform: uppercase;
+  animation: loginWordSlide .5s .05s cubic-bezier(.16,1,.3,1) both;
 }
 .login-word-my {
+  position: relative;
+  display: inline-block;
   font-family: 'Caveat', var(--font-display), cursive;
   color: var(--green);
-  font-size: 27px;
+  font-size: 46px;
   font-weight: 700;
   line-height: 1;
-  margin-top: -3px;
+  margin-top: -6px;
+  padding-bottom: 10px;
   transform: rotate(-4deg);
   transform-origin: left center;
+  animation: loginWordSlide .5s .15s cubic-bezier(.16,1,.3,1) both;
+}
+.login-word-my::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -8px;
+  bottom: 2px;
+  height: 14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M2 13 Q 40 3, 80 11 T 160 9 T 198 12' stroke='%23C8202B' stroke-width='6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+  opacity: .45;
 }
 .login-body { padding: 28px 30px 26px; }
 .login-kicker-pill { margin-bottom: 12px; }
