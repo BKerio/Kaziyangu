@@ -114,7 +114,7 @@ function MyTasksPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--surface-2)' }}>
-                  {['#', 'Date', 'Work', 'Customer/Project', 'Description', 'Hours Spent', 'Status', 'Progress', 'Attached Files', ''].map((h) => (
+                  {['Task No.', 'Date', 'Work', 'Customer/Project', 'Description', 'Hours Spent', 'Status', 'Progress', 'Attached Files', ''].map((h) => (
                     <th key={h} style={{ padding: '11px 14px', color: 'var(--muted)', fontWeight: 650, fontSize: 12 }}>{h}</th>
                   ))}
                 </tr>
