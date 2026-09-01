@@ -32,6 +32,24 @@ export function notify(type: 'success' | 'error' | 'warning' | 'info', title: st
   });
 }
 
+/**
+ * Centered, no-button celebration popup - big ring+checkmark, bold title,
+ * auto-dismisses with a progress bar. For a one-off "Welcome, Name!" moment
+ * (e.g. right after login), not for routine notices - use `notify()` for those.
+ */
+export function celebrate(title: string, durationMs = 3000) {
+  return Swal.fire({
+    ...BUTTON_STYLING,
+    title,
+    icon: 'success',
+    iconColor: ICON_COLOR.success,
+    showConfirmButton: false,
+    timer: durationMs,
+    timerProgressBar: true,
+    customClass: { popup: 'swal-confirm' },
+  });
+}
+
 interface ConfirmOptions {
   title: string;
   text?: string;

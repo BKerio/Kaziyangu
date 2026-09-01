@@ -5,7 +5,7 @@ import TopBar from '@/components/layout/TopBar';
 import { socket } from '@/lib/socket';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
-import { notify } from '@/lib/alert';
+import { celebrate } from '@/lib/alert';
 import { WorkTask } from '@/types/api';
 
 // Shared with the "reconnected" status bar's own display time below, so the
@@ -52,7 +52,7 @@ function AppShell() {
         hasConnectedBefore.current = true;
         setIsFirstConnect(true);
         const firstName = user.name?.split(' ')[0] || user.name;
-        notify('success', `Welcome back, ${firstName}!`, 'You\'re all set - have a productive day.', CONNECTION_FLASH_MS);
+        celebrate(`Welcome, ${firstName}!`, CONNECTION_FLASH_MS);
       } else {
         setIsFirstConnect(false);
       }
