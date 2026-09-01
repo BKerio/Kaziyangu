@@ -8,12 +8,11 @@ import { MicrosoftCalendarEvent } from '@/types/api';
 
 const LOOKAHEAD_DAYS = 14;
 const LOOKBACK_DAYS = 14;
-// "Recently" shows everything within this window, not just a fixed top-N -
-// a hard count (e.g. "last 2") silently drops older meetings (a Saturday
-// team meeting, say) the moment enough newer ones roll in. RECENT_MAX is
-// only a sanity cap for an unusually busy week.
+// "Recently" is scoped to this window for correctness (the "Last 7 Days"
+// stat and the list always agree on what counts as recent), then trimmed to
+// the most recent RECENT_MAX for display.
 const RECENT_WINDOW_DAYS = 7;
-const RECENT_MAX = 8;
+const RECENT_MAX = 3;
 
 /** The four-pane Microsoft logo mark - matches the one on LoginPage. */
 function MicrosoftLogo({ size = 16 }: { size?: number }) {
@@ -243,13 +242,13 @@ function MyCalendarPage() {
               </div>
             </div>
             <div className="stat">
-              <div className="stat-ico" style={{ background: 'var(--blue-soft)', color: 'var(--blue)' }}><CalendarDays /></div>
+              <div className="stat-ico" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}><CalendarDays /></div>
               <div className="stat-label">Next 7 Days</div>
               <div className="stat-val">{dueSoonCount}</div>
               <div className="stat-foot">meeting{dueSoonCount === 1 ? '' : 's'} scheduled</div>
             </div>
             <div className="stat">
-              <div className="stat-ico" style={{ background: 'var(--surface-3)', color: 'var(--muted)' }}><History /></div>
+              <div className="stat-ico" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}><History /></div>
               <div className="stat-label">Last 7 Days</div>
               <div className="stat-val">{recentCount}</div>
               <div className="stat-foot">meeting{recentCount === 1 ? '' : 's'} completed</div>

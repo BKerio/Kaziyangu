@@ -126,7 +126,12 @@ export class MicrosoftOAuthService {
         startDateTime: fromISO,
         endDateTime: toISO,
         $orderby: 'start/dateTime',
-        $top: '50',
+        // Results are ordered ascending with no pagination follow-up below,
+        // so a low cap here silently truncates the *later* end of the window
+        // on a busy calendar (e.g. a weekend meeting further out gets pushed
+        // past the cutoff by everything earlier in the range) - 250 comfortably
+        // covers a 28-day window even for a heavily-booked calendar.
+        $top: '250',
       });
 
       const res = await fetch(`https://graph.microsoft.com/v1.0/me/calendarView?${params.toString()}`, {
