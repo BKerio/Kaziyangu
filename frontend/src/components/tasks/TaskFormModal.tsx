@@ -16,6 +16,7 @@ const taskSchema = z.object({
   vertical: z.string().min(1, 'Vertical is required'),
   category: z.string().min(1, 'Category is required'),
   description: z.string().min(3, 'Description is required'),
+  organization: z.string().optional(),
   customerProject: z.string().optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
@@ -140,6 +141,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
           vertical: initial.vertical,
           category: initial.category,
           description: initial.description,
+          organization: initial.organization ?? '',
           customerProject: initial.customerProject ?? '',
           startTime: initial.startTime ?? '',
           endTime: initial.endTime ?? '',
@@ -270,9 +272,20 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
             {errors.description && <span className="field-error">{errors.description.message}</span>}
           </div>
 
-          <div className="field">
-            <label className="label" htmlFor="task-customer">Customer / Project</label>
-            <input id="task-customer" className="input" type="text" {...register('customerProject')} placeholder="e.g. Client X - DR Project" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="field">
+              <label className="label" htmlFor="task-organization">Organization</label>
+              <select id="task-organization" className="eoc-select" {...register('organization')}>
+                <option value="">Select…</option>
+                {options?.organizations.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="task-customer">Customer / Project</label>
+              <input id="task-customer" className="input" type="text" {...register('customerProject')} placeholder="e.g. Client X - DR Project" />
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">

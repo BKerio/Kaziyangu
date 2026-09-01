@@ -7,7 +7,7 @@ import { getTaskOptions } from './task-options.js';
 import { authenticate } from '../../middleware/auth.js';
 import { taskAttachmentUpload } from '../../middleware/upload.js';
 import { requireRole } from '../../shared/guards/requireRole.js';
-import { Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
+import { Organization, Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
 import { BadRequestError } from '../../shared/errors/AppError.js';
 
 const managerRoles = [Role.ADMIN, Role.SUPER_ADMIN];
@@ -17,6 +17,7 @@ const createTaskSchema = z.object({
   vertical: z.nativeEnum(TaskVertical),
   category: z.nativeEnum(TaskCategory),
   description: z.string().min(3, 'Task description is required'),
+  organization: z.nativeEnum(Organization).optional(),
   customerProject: z.string().optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),

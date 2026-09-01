@@ -1,6 +1,6 @@
 import { AppContext } from '../../context.js';
 import { Prisma } from '../../generated/prisma/index.js';
-import { Department, Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
+import { Department, Organization, Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
 import { ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 import { COMPLETED_STATUSES } from './task-options.js';
 
@@ -11,6 +11,7 @@ export interface CreateTaskInput {
   vertical: TaskVertical;
   category: TaskCategory;
   description: string;
+  organization?: Organization;
   customerProject?: string;
   startTime?: string;
   endTime?: string;
@@ -65,6 +66,7 @@ export class TaskService {
         vertical: data.vertical,
         category: data.category,
         description: data.description,
+        organization: data.organization,
         customerProject: data.customerProject,
         startTime: data.startTime,
         endTime: data.endTime,
@@ -164,6 +166,7 @@ export class TaskService {
         ...(data.vertical !== undefined ? { vertical: data.vertical } : {}),
         ...(data.category !== undefined ? { category: data.category } : {}),
         ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.organization !== undefined ? { organization: data.organization } : {}),
         ...(data.customerProject !== undefined ? { customerProject: data.customerProject } : {}),
         ...(data.startTime !== undefined ? { startTime: data.startTime } : {}),
         ...(data.endTime !== undefined ? { endTime: data.endTime } : {}),

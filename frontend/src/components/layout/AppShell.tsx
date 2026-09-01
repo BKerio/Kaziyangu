@@ -1,11 +1,17 @@
 import { Outlet, Navigate } from 'react-router-dom';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
 import { socket } from '@/lib/socket';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
+import { notify } from '@/lib/alert';
 import { WorkTask } from '@/types/api';
+
+// Shared with the "reconnected" status bar's own display time below, so the
+// welcome popup fired on first connect (login success) disappears in step
+// with it rather than lingering after or vanishing before.
+const CONNECTION_FLASH_MS = 3000;
 
 function AppShell() {
   const { addNotification } = useNotificationStore();
@@ -18,6 +24,11 @@ function AppShell() {
   );
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [reconnectedFlash, setReconnectedFlash] = useState(false);
+  // First connect of this session (i.e. login success) reads "Welcome back,
+  // Name!" instead of "Reconnected" - a fresh sign-in never reconnected from
+  // anything. Only actual reconnects (after a real disconnect) say that.
+  const [isFirstConnect, setIsFirstConnect] = useState(true);
+  const hasConnectedBefore = useRef(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -36,6 +47,15 @@ function AppShell() {
     socket.on('connect', () => {
       setIsConnected(true);
       setReconnectedFlash(true);
+
+      if (!hasConnectedBefore.current) {
+        hasConnectedBefore.current = true;
+        setIsFirstConnect(true);
+        const firstName = user.name?.split(' ')[0] || user.name;
+        notify('success', `Welcome back, ${firstName}!`, 'You\'re all set - have a productive day.', CONNECTION_FLASH_MS);
+      } else {
+        setIsFirstConnect(false);
+      }
     });
 
     socket.on('disconnect', () => setIsConnected(false));
@@ -64,7 +84,7 @@ function AppShell() {
 
   useEffect(() => {
     if (!reconnectedFlash) return;
-    const t = setTimeout(() => setReconnectedFlash(false), 3000);
+    const t = setTimeout(() => setReconnectedFlash(false), CONNECTION_FLASH_MS);
     return () => clearTimeout(t);
   }, [reconnectedFlash]);
 
@@ -98,7 +118,7 @@ function AppShell() {
             }}
           >
             <span style={{ width: 8, height: 8, borderRadius: '99px', background: 'var(--color-status-success, #169A5B)', flexShrink: 0, display: 'inline-block' }} />
-            Reconnected
+            {isFirstConnect ? `Welcome back, ${user?.name?.split(' ')[0] || user?.name}!` : 'Reconnected'}
           </div>
         )}
         <main className="content">

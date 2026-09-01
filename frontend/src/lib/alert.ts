@@ -16,7 +16,7 @@ const ICON_COLOR: Record<'success' | 'error' | 'warning' | 'info' | 'question', 
 };
 
 /** Toast-style popup in the top-right corner, auto-dismisses - for success/info/warning/error notices. */
-export function notify(type: 'success' | 'error' | 'warning' | 'info', title: string, message?: string) {
+export function notify(type: 'success' | 'error' | 'warning' | 'info', title: string, message?: string, durationMs = 5000) {
   return Swal.fire({
     ...BUTTON_STYLING,
     toast: true,
@@ -26,7 +26,7 @@ export function notify(type: 'success' | 'error' | 'warning' | 'info', title: st
     title,
     text: message,
     showConfirmButton: false,
-    timer: 5000,
+    timer: durationMs,
     timerProgressBar: true,
     customClass: { popup: 'swal-toast' },
   });

@@ -1,4 +1,4 @@
-import { TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
+import { Organization, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
 
 /**
  * Human-readable labels for the task taxonomy enums, matching the source
@@ -45,6 +45,15 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   ESCALATED: 'Escalated',
 };
 
+export const ORGANIZATION_LABELS: Record<Organization, string> = {
+  MILLENIUM_SOLUTIONS: 'Millenium Solutions E.A Limited',
+  BRESTONE_AFRICA: 'Brestone Africa Limited',
+  BRIGHTON_TECHNOLOGIES: 'Brighton Technologies Limited',
+  MIRACOM_AFRICA: 'Miracom Africa Limited',
+  TRANSBIZ: 'Transbiz Limited',
+  BIGHATCH: 'Bighatch Limited',
+};
+
 function asOptions<T extends string>(labels: Record<T, string>): Array<{ value: T; label: string }> {
   return (Object.keys(labels) as T[]).map((value) => ({ value, label: labels[value] }));
 }
@@ -54,6 +63,7 @@ export function getTaskOptions() {
     verticals: asOptions(VERTICAL_LABELS),
     categories: asOptions(CATEGORY_LABELS),
     statuses: asOptions(STATUS_LABELS),
+    organizations: asOptions(ORGANIZATION_LABELS),
   };
 }
 

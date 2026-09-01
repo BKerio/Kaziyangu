@@ -66,6 +66,14 @@ export type TaskStatus =
   | 'COMPLETED_CLOSED'
   | 'ESCALATED';
 
+export type Organization =
+  | 'MILLENIUM_SOLUTIONS'
+  | 'BRESTONE_AFRICA'
+  | 'BRIGHTON_TECHNOLOGIES'
+  | 'MIRACOM_AFRICA'
+  | 'TRANSBIZ'
+  | 'BIGHATCH';
+
 export interface User {
   id: string;
   email: string;
@@ -97,6 +105,7 @@ export interface WorkTask {
   vertical: TaskVertical;
   category: TaskCategory;
   description: string;
+  organization?: Organization | null;
   customerProject?: string | null;
   startTime?: string | null;
   endTime?: string | null;
@@ -131,6 +140,7 @@ export interface TaskOptions {
   verticals: TaskOption<TaskVertical>[];
   categories: TaskOption<TaskCategory>[];
   statuses: TaskOption<TaskStatus>[];
+  organizations: TaskOption<Organization>[];
 }
 
 export type TimeBalanceLabel = 'narrow' | 'focused' | 'balanced' | 'well_rounded' | 'none';

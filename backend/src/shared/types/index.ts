@@ -6,11 +6,11 @@
 // ── Prisma Enums ──────────────────────────────────────────────────────────────
 import {
   Role, TaskVertical, TaskCategory, TaskStatus, AttendanceStatus, WorkMode, ReportStatus, Department,
-  OpportunityStage, OpportunityPriority, ActivityType, ReminderChannel, ReminderStatus,
+  OpportunityStage, OpportunityPriority, ActivityType, ReminderChannel, ReminderStatus, Organization,
 } from '../../generated/prisma/index.js';
 export {
   Role, TaskVertical, TaskCategory, TaskStatus, AttendanceStatus, WorkMode, ReportStatus, Department,
-  OpportunityStage, OpportunityPriority, ActivityType, ReminderChannel, ReminderStatus,
+  OpportunityStage, OpportunityPriority, ActivityType, ReminderChannel, ReminderStatus, Organization,
 };
 
 // ── JWT ───────────────────────────────────────────────────────────────────────

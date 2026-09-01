@@ -152,6 +152,18 @@ enum TaskStatus {
   ESCALATED
 }
 
+// Which of the group's legal entities a task is logged against. Optional -
+// historical rows predate this field, and it stays unset for tasks logged
+// through the WhatsApp bot for now (see modules/whatsapp/whatsapp-bot.service.ts).
+enum Organization {
+  MILLENIUM_SOLUTIONS
+  BRESTONE_AFRICA
+  BRIGHTON_TECHNOLOGIES
+  MIRACOM_AFRICA
+  TRANSBIZ
+  BIGHATCH
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // User
 // ─────────────────────────────────────────────────────────────────────────────
@@ -419,8 +431,11 @@ model WorkTask {
 
   vertical        TaskVertical
   category        TaskCategory
-  description     String       @map("description") @db.Text
-  customerProject String?      @map("customer_project")
+  description     String        @map("description") @db.Text
+  // Which group entity this task is logged against - distinct from the
+  // free-text customer/project name below.
+  organization    Organization?
+  customerProject String?       @map("customer_project")
 
   // Stored as "HH:mm" (24h) to match how the sheet records a clock time,
   // without pulling in timezone handling for a value that's just a label.
