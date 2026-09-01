@@ -18,13 +18,29 @@ export class TeamCalendarService {
     });
   }
 
-  /** Active staff/admin roster (attachees excluded, same scope as the rest of this module) - names only. */
+  /**
+   * Active staff/admin roster (attachees excluded, same scope as the rest of
+   * this module) - names plus whether each one has ever actually signed in.
+   * There's no dedicated "last seen" column; a successful login already
+   * writes an AuditLog row (action: 'LOGIN', see auth.service.ts), so that's
+   * the source of truth rather than adding a second, easily-inconsistent
+   * tracking mechanism.
+   */
   async roster() {
-    return this.app.prisma.user.findMany({
+    const users = await this.app.prisma.user.findMany({
       where: { isActive: true, role: { not: Role.ATTACHEE } },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });
+
+    const logins = await this.app.prisma.auditLog.findMany({
+      where: { action: 'LOGIN', userId: { in: users.map((u) => u.id) } },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    const hasLoggedInIds = new Set(logins.map((l) => l.userId));
+
+    return users.map((u) => ({ ...u, hasLoggedIn: hasLoggedInIds.has(u.id) }));
   }
 
   /**

@@ -76,9 +76,17 @@ function ActiveTeamText() {
                 {initials(current.name)}
               </span>
               {current.name}
-              {/* Genuine green (not the app's red brand accent) - "online" is the
-                  one place that semantic color, rather than brand color, is right. */}
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: '#169A5B', flexShrink: 0 }} />
+              {/* Green = has actually signed in at least once; amber = an active
+                  account that's never been logged into. Genuine status colors,
+                  not the app's red brand accent - that's the one place they're right. */}
+              <span
+                aria-hidden
+                title={current.hasLoggedIn ? 'Has logged in' : 'Never logged in'}
+                style={{
+                  width: 6, height: 6, borderRadius: 99, flexShrink: 0,
+                  background: current.hasLoggedIn ? '#169A5B' : 'var(--amber)',
+                }}
+              />
             </motion.div>
           </AnimatePresence>
         </div>
