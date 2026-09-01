@@ -407,7 +407,6 @@ function TimeBalancePage() {
   );
 
   const activeVerticalCount = verticalPie.length;
-  const activeCategoryCount = categoryPie.length;
   const coveragePct = data
     ? Math.round((activeVerticalCount / Math.max(data.byVertical.length, 1)) * 100)
     : 0;
