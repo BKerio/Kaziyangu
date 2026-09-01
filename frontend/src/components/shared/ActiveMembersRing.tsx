@@ -134,18 +134,9 @@ function ActiveMembersRing() {
       </div>
 
       <div className="col" style={{ gap: 10, flex: 1, minWidth: 0 }}>
+        <p className="text-xs font-bold" style={{ color: 'var(--muted)', letterSpacing: '.06em' }}>Team Activation</p>
         <div className="flex items-center gap-2">
-          <p className="text-xs font-bold normal" style={{ color: 'var(--muted)', letterSpacing: '.06em' }}>Team Activation</p>
-          <span className="flex items-center gap-1" style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.04em', color: GREEN }}>
-            <motion.span
-              aria-hidden
-              style={{ width: 5, height: 5, borderRadius: 99, background: GREEN, display: 'inline-block' }}
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: GREEN, flexShrink: 0 }} />
           <span className="text-sm" style={{ color: 'var(--ink)' }}><strong>{activeCount}</strong> online now</span>
         </div>
         <div className="flex items-center gap-2">
