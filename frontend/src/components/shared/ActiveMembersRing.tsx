@@ -143,7 +143,6 @@ function ActiveMembersRing() {
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
             />
-          
           </span>
         </div>
         <div className="flex items-center gap-2">
