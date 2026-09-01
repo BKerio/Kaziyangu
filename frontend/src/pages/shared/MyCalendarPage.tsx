@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, Clock, ExternalLink, MapPin, Unlink } from 'lucide-react';
+import { CalendarDays, Clock, ExternalLink, MapPin, Plug, PlugZap, Unplug } from 'lucide-react';
 import api from '@/api/client';
 import { confirmDialog } from '@/lib/alert';
 import { fmtDate, fmtTime, nairobiTodayISO } from '@/lib/datetime';
@@ -90,9 +90,12 @@ function MyCalendarPage() {
           <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Your upcoming Outlook events for the next 14 days.</p>
         </div>
         {data?.connected && (
-          <button className="btn btn-ghost btn-sm" onClick={handleDisconnect} disabled={disconnectMutation.isPending}>
-            <Unlink size={14} /> Disconnect
-          </button>
+          <div className="flex items-center" style={{ gap: 10 }}>
+            <span className="pill pill-teal"><PlugZap size={13} /> Connected</span>
+            <button className="btn btn-ghost btn-sm" onClick={handleDisconnect} disabled={disconnectMutation.isPending}>
+              <Unplug size={14} /> Disconnect
+            </button>
+          </div>
         )}
       </div>
 
@@ -106,7 +109,15 @@ function MyCalendarPage() {
         </div>
       ) : !data?.connected ? (
         <div className="card card-pad flex flex-col items-center text-center" style={{ gap: 10, padding: '56px 20px' }}>
-          <CalendarDays size={32} style={{ color: 'var(--muted-2)' }} />
+          <div
+            style={{
+              width: 56, height: 56, borderRadius: 14,
+              display: 'grid', placeItems: 'center',
+              background: 'var(--teal-soft)', color: 'var(--teal)',
+            }}
+          >
+            <Plug size={26} />
+          </div>
           <p className="text-base font-bold" style={{ color: 'var(--ink)' }}>Connect your Outlook account</p>
           <p className="text-sm" style={{ color: 'var(--muted)', maxWidth: 360 }}>
             Link your Outlook account to see your upcoming calendar events here.
