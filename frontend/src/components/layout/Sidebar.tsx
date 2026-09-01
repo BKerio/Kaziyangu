@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { confirmAndSignOut } from '@/lib/session';
-import logo from '@/assets/logos/logo(3).png';
+import logo from '@/assets/logos/logo.png';
 import SidebarTimeTracker from './SidebarTimeTracker';
 
 interface SidebarProps {
