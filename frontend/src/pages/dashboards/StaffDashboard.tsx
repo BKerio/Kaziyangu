@@ -8,6 +8,7 @@ import {
 import api from '@/api/client';
 import { getMyProfile } from '@/api/account';
 import ActiveTeamText from '@/components/shared/ActiveTeamText';
+import ActiveMembersRing from '@/components/shared/ActiveMembersRing';
 import { Department, PaginatedResponse, WorkTask } from '@/types/api';
 import { fmtDate } from '@/lib/datetime';
 
@@ -159,7 +160,10 @@ function StaffDashboard() {
       </div>
       <p className="text-xs" style={{ color: 'var(--muted)', marginTop: -12 }}>{weekHours}h logged over the last 7 days</p>
 
-      <ActiveTeamText />
+      <div className="grid grid-cols-2 gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+        <ActiveMembersRing />
+        <ActiveTeamText />
+      </div>
 
       {/* Department focus tiles */}
       <div className="grid grid-cols-3 gap-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
