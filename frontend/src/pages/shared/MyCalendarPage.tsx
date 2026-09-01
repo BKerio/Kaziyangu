@@ -8,7 +8,12 @@ import { MicrosoftCalendarEvent } from '@/types/api';
 
 const LOOKAHEAD_DAYS = 14;
 const LOOKBACK_DAYS = 14;
-const RECENT_COUNT = 2;
+// "Recently" shows everything within this window, not just a fixed top-N -
+// a hard count (e.g. "last 2") silently drops older meetings (a Saturday
+// team meeting, say) the moment enough newer ones roll in. RECENT_MAX is
+// only a sanity cap for an unusually busy week.
+const RECENT_WINDOW_DAYS = 7;
+const RECENT_MAX = 8;
 
 /** The four-pane Microsoft logo mark - matches the one on LoginPage. */
 function MicrosoftLogo({ size = 16 }: { size?: number }) {
@@ -173,11 +178,12 @@ function MyCalendarPage() {
   const upcoming = events.filter((e) => !hasEnded(e));
   const past = events.filter(hasEnded); // already ascending by start, so the tail is most recent
   const nextMeeting = upcoming[0];
-  const recent = past.slice(-RECENT_COUNT).reverse();
+  const recentInWindow = past.filter((e) => withinLastDays(e, RECENT_WINDOW_DAYS));
+  const recent = recentInWindow.slice(-RECENT_MAX).reverse();
   const upcomingGroups = groupByDay(upcoming);
 
   const dueSoonCount = upcoming.filter((e) => withinNextDays(e, 7)).length;
-  const recentCount = past.filter((e) => withinLastDays(e, 7)).length;
+  const recentCount = recentInWindow.length;
 
   return (
     <div className="col" style={{ gap: 20 }}>
@@ -189,7 +195,7 @@ function MyCalendarPage() {
         </div>
         {data?.connected && (
           <div className="flex items-center" style={{ gap: 10 }}>
-            <span className="pill pill-teal"><PlugZap size={13} /> Connected</span>
+            <span className="pill pill-red"><PlugZap size={13} /> Connected</span>
             <button className="btn btn-ghost btn-sm" onClick={handleDisconnect} disabled={disconnectMutation.isPending}>
               <Unplug size={14} /> Disconnect
             </button>
@@ -211,7 +217,7 @@ function MyCalendarPage() {
             style={{
               width: 56, height: 56, borderRadius: 14,
               display: 'grid', placeItems: 'center',
-              background: 'var(--teal-soft)', color: 'var(--teal)',
+              background: 'var(--red-soft)', color: 'var(--red)',
             }}
           >
             <Plug size={26} />
@@ -229,7 +235,7 @@ function MyCalendarPage() {
           {/* Stat row */}
           <div className="stat-grid stat-grid-3">
             <div className="stat">
-              <div className="stat-ico" style={{ background: 'var(--teal-soft)', color: 'var(--teal)' }}><CalendarClock /></div>
+              <div className="stat-ico" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}><CalendarClock /></div>
               <div className="stat-label">Next Meeting</div>
               <div className="stat-val" style={{ fontSize: 22 }}>{nextMeeting ? countdown(nextMeeting) : 'None'}</div>
               <div className="stat-foot" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -252,12 +258,12 @@ function MyCalendarPage() {
 
           {/* Next meeting spotlight */}
           {nextMeeting && (
-            <div className="card card-pad" style={{ borderLeft: '4px solid var(--teal)' }}>
+            <div className="card card-pad" style={{ borderLeft: '4px solid var(--red)' }}>
               <div className="flex items-center justify-between" style={{ flexWrap: 'wrap', gap: 10 }}>
                 <div className="col" style={{ gap: 6, minWidth: 0 }}>
                   <div className="flex items-center gap-2">
-                    <p className="eyebrow" style={{ color: 'var(--teal)' }}>Next Meeting</p>
-                    <span className="pill pill-teal">{countdown(nextMeeting)}</span>
+                    <p className="eyebrow" style={{ color: 'var(--red)' }}>Next Meeting</p>
+                    <span className="pill pill-red">{countdown(nextMeeting)}</span>
                   </div>
                   <h3 className="font-bold" style={{ fontSize: 18, color: 'var(--ink)' }}>{nextMeeting.subject}</h3>
                   <div className="flex items-center gap-3" style={{ fontSize: 13, color: 'var(--muted)', flexWrap: 'wrap' }}>
@@ -303,7 +309,7 @@ function MyCalendarPage() {
               <div className="card-head"><span className="card-title">Recently</span></div>
               {recent.length === 0 ? (
                 <p className="text-sm" style={{ color: 'var(--muted)', padding: '20px 16px' }}>
-                  No meetings in the last {LOOKBACK_DAYS} days.
+                  No meetings in the last {RECENT_WINDOW_DAYS} days.
                 </p>
               ) : (
                 recent.map((event, i) => (
