@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BrainCircuit,
   Compass,
   Layers,
   PieChart as PieChartIcon,
@@ -177,7 +176,7 @@ function BalanceSnapshotCard({
                 color: 'var(--red)',
               }}
             >
-              <BrainCircuit size={15} />
+              <ClockFading size={15} />
             </span>
             <span className="card-title">Time balance</span>
           </div>
@@ -511,7 +510,7 @@ function TimeBalancePage() {
 
             <div className="card-pad col" style={{ gap: 16 }}>
               <div className="flex items-center gap-2">
-                <BrainCircuit size={18} style={{ color: 'var(--red)' }} />
+                <ClockFading size={18} style={{ color: 'var(--red)' }} />
                 <span className="card-title">Your orbit · last {range} days</span>
               </div>
 
