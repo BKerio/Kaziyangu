@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { animate, motion, useMotionValue } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/api/client';
+import { useOnlinePresence } from '@/hooks/useOnlinePresence';
 import { TeamRosterMember } from '@/types/api';
 
 const SIZE = 128;
@@ -29,14 +30,16 @@ function useCountUp(target: number, duration = 1.1): number {
 }
 
 /**
- * A two-tone progress ring showing what fraction of the team has actually
- * signed in (green) versus never has (amber) - the same split ActiveTeamText
- * cycles through by name, here as a single glanceable shape instead. Draws
- * itself in on mount, with a soft radar-style pulse behind it and a
- * count-up percentage in the center.
+ * A two-tone progress ring showing what fraction of the team is online right
+ * now (green) versus offline (amber) - the same live status ActiveTeamText
+ * shows per name, here as a single glanceable shape instead. Draws itself in
+ * on mount, with a soft radar-style pulse behind it and a count-up
+ * percentage in the center - and keeps redrawing itself as people connect
+ * and disconnect, via the shared socket's presence:update broadcast.
  */
 function ActiveMembersRing() {
   const gradientId = useId();
+  const liveOnline = useOnlinePresence();
 
   const { data, isLoading } = useQuery({
     queryKey: ['team-calendar', 'roster'],
@@ -48,8 +51,10 @@ function ActiveMembersRing() {
   });
 
   const roster = data ?? [];
+  // Live presence once it's arrived; the REST snapshot fills the brief gap before it does.
+  const isOnline = (m: TeamRosterMember) => (liveOnline ? liveOnline.has(m.id) : m.isOnline);
   const total = roster.length;
-  const activeCount = roster.filter((m) => m.hasLoggedIn).length;
+  const activeCount = roster.filter(isOnline).length;
   const inactiveCount = total - activeCount;
   const activeFraction = total > 0 ? activeCount / total : 0;
   const inactiveFraction = total > 0 ? inactiveCount / total : 0;
@@ -93,7 +98,7 @@ function ActiveMembersRing() {
           {/* Track */}
           <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" stroke="var(--surface-3)" strokeWidth={STROKE} />
 
-          {/* Never-logged-in arc, starting where the active arc ends */}
+          {/* Offline arc, starting where the online arc ends */}
           <motion.circle
             cx={CENTER} cy={CENTER} r={RADIUS} fill="none"
             stroke={`url(#${gradientId}-inactive)`} strokeWidth={STROKE} strokeLinecap="round"
@@ -103,7 +108,7 @@ function ActiveMembersRing() {
             transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
           />
 
-          {/* Logged-in arc, drawn from the top, glowing */}
+          {/* Online arc, drawn from the top, glowing */}
           <motion.circle
             cx={CENTER} cy={CENTER} r={RADIUS} fill="none"
             stroke={`url(#${gradientId}-active)`} strokeWidth={STROKE} strokeLinecap="round"
@@ -123,20 +128,31 @@ function ActiveMembersRing() {
             {pct}%
           </span>
           <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.06em', color: 'var(--muted)', textTransform: 'uppercase', marginTop: 3 }}>
-            Active
+            Online
           </span>
         </div>
       </div>
 
       <div className="col" style={{ gap: 10, flex: 1, minWidth: 0 }}>
-        <p className="text-xs font-bold uppercase" style={{ color: 'var(--muted)', letterSpacing: '.06em' }}>Team Activation</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-bold uppercase" style={{ color: 'var(--muted)', letterSpacing: '.06em' }}>Team Activation</p>
+          <span className="flex items-center gap-1" style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.04em', color: GREEN }}>
+            <motion.span
+              aria-hidden
+              style={{ width: 5, height: 5, borderRadius: 99, background: GREEN, display: 'inline-block' }}
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            LIVE
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <span style={{ width: 8, height: 8, borderRadius: 99, background: GREEN, flexShrink: 0 }} />
-          <span className="text-sm" style={{ color: 'var(--ink)' }}><strong>{activeCount}</strong> logged in</span>
+          <span className="text-sm" style={{ color: 'var(--ink)' }}><strong>{activeCount}</strong> online now</span>
         </div>
         <div className="flex items-center gap-2">
           <span style={{ width: 8, height: 8, borderRadius: 99, background: 'var(--amber)', flexShrink: 0 }} />
-          <span className="text-sm" style={{ color: 'var(--ink)' }}><strong>{inactiveCount}</strong> never logged in</span>
+          <span className="text-sm" style={{ color: 'var(--ink)' }}><strong>{inactiveCount}</strong> offline</span>
         </div>
       </div>
     </div>

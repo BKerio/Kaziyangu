@@ -15,6 +15,8 @@ export interface TeamRosterMember {
   name: string;
   /** Whether this person has ever actually signed in - vs. just having an active account. */
   hasLoggedIn: boolean;
+  /** Snapshot at fetch time - overlay live presence:update events on top of this, don't rely on it alone. */
+  isOnline: boolean;
 }
 
 export type Department = 'TECHNICAL' | 'BUSINESS_DEVELOPMENT' | 'FINANCE' | 'COMMERCIAL' | 'ADMIN';

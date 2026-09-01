@@ -1,6 +1,7 @@
 import { AppContext } from '../../context.js';
 import { Role } from '../../shared/types/index.js';
 import { ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
+import { getOnlineUserIds } from '../../lib/socket.js';
 
 const OOO_INCLUDE = {
   user: { select: { id: true, name: true, role: true } },
@@ -20,11 +21,12 @@ export class TeamCalendarService {
 
   /**
    * Active staff/admin roster (attachees excluded, same scope as the rest of
-   * this module) - names plus whether each one has ever actually signed in.
-   * There's no dedicated "last seen" column; a successful login already
-   * writes an AuditLog row (action: 'LOGIN', see auth.service.ts), so that's
-   * the source of truth rather than adding a second, easily-inconsistent
-   * tracking mechanism.
+   * this module): names, whether each has ever signed in (an AuditLog
+   * 'LOGIN' row - see auth.service.ts), and whether they're online *right
+   * now* (a live Socket.io connection - see lib/socket.ts). `isOnline` here
+   * is only the snapshot at request time; the frontend overlays live
+   * presence:update events on top of it so it keeps updating without a
+   * refetch.
    */
   async roster() {
     const users = await this.app.prisma.user.findMany({
@@ -39,8 +41,13 @@ export class TeamCalendarService {
       distinct: ['userId'],
     });
     const hasLoggedInIds = new Set(logins.map((l) => l.userId));
+    const onlineIds = getOnlineUserIds();
 
-    return users.map((u) => ({ ...u, hasLoggedIn: hasLoggedInIds.has(u.id) }));
+    return users.map((u) => ({
+      ...u,
+      hasLoggedIn: hasLoggedInIds.has(u.id),
+      isOnline: onlineIds.has(u.id),
+    }));
   }
 
   /**

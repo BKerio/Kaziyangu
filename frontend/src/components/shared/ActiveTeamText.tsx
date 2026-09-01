@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import { Users } from 'lucide-react';
 import api from '@/api/client';
+import { useOnlinePresence } from '@/hooks/useOnlinePresence';
 import { TeamRosterMember } from '@/types/api';
 
 const CYCLE_MS = 2200;
@@ -18,8 +19,13 @@ function initials(name: string): string {
  * initial/animate/exit choreography, but wired to the real roster instead
  * of a hardcoded greeting list, and looping continuously (a live headcount
  * belongs on screen the whole time a dashboard is open, not just once).
+ * The per-name status dot is genuinely live too - it overlays the shared
+ * socket's presence:update broadcast on top of the roster fetch, so it
+ * flips the instant someone actually connects or disconnects.
  */
 function ActiveTeamText() {
+  const liveOnline = useOnlinePresence();
+
   const { data, isLoading } = useQuery({
     queryKey: ['team-calendar', 'roster'],
     queryFn: async () => {
@@ -30,6 +36,7 @@ function ActiveTeamText() {
   });
 
   const roster = data ?? [];
+  const isOnline = (m: TeamRosterMember) => (liveOnline ? liveOnline.has(m.id) : m.isOnline);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -76,15 +83,15 @@ function ActiveTeamText() {
                 {initials(current.name)}
               </span>
               {current.name}
-              {/* Green = has actually signed in at least once; amber = an active
-                  account that's never been logged into. Genuine status colors,
-                  not the app's red brand accent - that's the one place they're right. */}
+              {/* Green = online right now; amber = not currently connected. Live,
+                  not historical - genuine status colors, not the app's red brand
+                  accent, which is the one place they're right. */}
               <span
                 aria-hidden
-                title={current.hasLoggedIn ? 'Has logged in' : 'Never logged in'}
+                title={isOnline(current) ? 'Online now' : 'Offline'}
                 style={{
                   width: 6, height: 6, borderRadius: 99, flexShrink: 0,
-                  background: current.hasLoggedIn ? '#169A5B' : 'var(--amber)',
+                  background: isOnline(current) ? '#169A5B' : 'var(--amber)',
                 }}
               />
             </motion.div>
