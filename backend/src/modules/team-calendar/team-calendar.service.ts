@@ -18,6 +18,15 @@ export class TeamCalendarService {
     });
   }
 
+  /** Active staff/admin roster (attachees excluded, same scope as the rest of this module) - names only. */
+  async roster() {
+    return this.app.prisma.user.findMany({
+      where: { isActive: true, role: { not: Role.ATTACHEE } },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   /**
    * Marks the given dates as out-of-office for `userId`. Idempotent - a date
    * already marked is left as-is rather than erroring (the unique constraint

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '@/api/client';
 import { getMyProfile } from '@/api/account';
+import ActiveTeamText from '@/components/shared/ActiveTeamText';
 import { Department, PaginatedResponse, WorkTask } from '@/types/api';
 import { fmtDate } from '@/lib/datetime';
 
@@ -157,6 +158,8 @@ function StaffDashboard() {
         </div>
       </div>
       <p className="text-xs" style={{ color: 'var(--muted)', marginTop: -12 }}>{weekHours}h logged over the last 7 days</p>
+
+      <ActiveTeamText />
 
       {/* Department focus tiles */}
       <div className="grid grid-cols-3 gap-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>

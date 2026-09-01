@@ -28,6 +28,12 @@ export function teamCalendarRoutes(ctx: AppContext): Router {
   router.use(authenticate);
   router.use(requireRole(staffRoles));
 
+  /** GET /team-calendar/roster - active staff/admin names, for the dashboard's "who's active" widget. */
+  router.get('/roster', async (_req, res) => {
+    const data = await service.roster();
+    res.send({ ok: true, data });
+  });
+
   /** GET /team-calendar?from=YYYY-MM-DD&to=YYYY-MM-DD */
   router.get('/', async (req, res) => {
     const { from, to } = req.query as { from?: string; to?: string };

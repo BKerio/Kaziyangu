@@ -713,9 +713,14 @@ h1, h2 { font-family: var(--font-display); }
 .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
 @media (max-width: 1100px) { .stat-grid { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 600px) { .stat-grid { grid-template-columns: 1fr; } }
-.stat-grid-3 { grid-template-columns: repeat(3,1fr); }
-@media (max-width: 900px) { .stat-grid-3 { grid-template-columns: repeat(2,1fr); } }
-@media (max-width: 600px) { .stat-grid-3 { grid-template-columns: 1fr; } }
+/* Compound selector (not just .stat-grid-3) so this reliably beats the
+   plain .stat-grid mobile overrides further down regardless of source
+   order - two same-specificity rules for the same property are otherwise
+   decided by which appears last in the file, which is fragile the moment
+   either block gets reordered. */
+.stat-grid.stat-grid-3 { grid-template-columns: repeat(3,1fr); }
+@media (max-width: 900px) { .stat-grid.stat-grid-3 { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 600px) { .stat-grid.stat-grid-3 { grid-template-columns: 1fr; } }
 .stat {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 18px; cursor: pointer; transition: border-color .15s, box-shadow .15s;

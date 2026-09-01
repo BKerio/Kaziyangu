@@ -10,6 +10,11 @@ export interface MicrosoftCalendarEvent {
   webLink: string;
 }
 
+export interface TeamRosterMember {
+  id: string;
+  name: string;
+}
+
 export type Department = 'TECHNICAL' | 'BUSINESS_DEVELOPMENT' | 'FINANCE' | 'COMMERCIAL' | 'ADMIN';
 
 export const DEPARTMENT_OPTIONS: { value: Department; label: string }[] = [
