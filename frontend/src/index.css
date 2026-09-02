@@ -136,6 +136,42 @@ h1, h2 { font-family: var(--font-display); }
 .progress-track { width: 64px; height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 99px; background: var(--green); transition: width .2s; }
 
+/* % Complete slider (task form) - a native range input styled with a filled
+   track (via the --range-fill custom property, kept in sync with the
+   current value in JS) instead of the browser's plain default groove. */
+.range-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 8px; border-radius: 99px; outline: none; cursor: pointer;
+  background: linear-gradient(to right, var(--green) var(--range-fill, 0%), var(--surface-3) var(--range-fill, 0%));
+}
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 99px;
+  background: var(--surface); border: 3px solid var(--green);
+  box-shadow: 0 1px 4px rgba(16,33,26,.25);
+  cursor: pointer; transition: transform .1s;
+}
+.range-slider::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.range-slider::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 99px;
+  background: var(--surface); border: 3px solid var(--green);
+  box-shadow: 0 1px 4px rgba(16,33,26,.25);
+  cursor: pointer; transition: transform .1s;
+}
+.range-slider::-moz-range-thumb:hover { transform: scale(1.12); }
+.range-slider::-moz-range-track { background: transparent; }
+
+/* Task form's attachment picker - a clickable dashed dropzone-style label
+   standing in for the browser's plain default file-input button. */
+.file-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 18px 16px; border: 1.5px dashed var(--border-strong); border-radius: var(--radius-sm);
+  cursor: pointer; text-align: center; transition: border-color .15s, background .15s, color .15s;
+  color: var(--muted); font-size: 13px; font-weight: 600;
+}
+.file-dropzone:hover { border-color: var(--green); background: var(--green-light); color: var(--green); }
+.file-dropzone-hint { font-size: 11px; font-weight: 500; color: var(--muted-2); }
+
 /* Small colored initials avatar - marks a cluster of same-day, same-customer
    task rows (see utils/customerSequence.ts) so they read as one thread. */
 .customer-avatar {

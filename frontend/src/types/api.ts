@@ -41,7 +41,11 @@ export type TaskVertical =
   | 'ACCOUNT_MANAGEMENT'
   | 'TECHNICAL_PRESALES'
   | 'PROJECT_MANAGEMENT'
-  | 'ADMINISTRATION';
+  | 'ADMINISTRATION'
+  | 'ERP_BUSINESS_APPLICATIONS'
+  | 'CLOUD_SERVICES'
+  | 'DATA_ANALYTICS'
+  | 'HUMAN_RESOURCES';
 
 export type TaskCategory =
   | 'DEPLOYMENT'
@@ -56,7 +60,11 @@ export type TaskCategory =
   | 'REPORTING'
   | 'INTRODUCTION'
   | 'QUALIFICATION'
-  | 'SUBMISSION';
+  | 'SUBMISSION'
+  | 'TRAINING'
+  | 'DOCUMENTATION'
+  | 'MIGRATION'
+  | 'AUDIT_COMPLIANCE';
 
 export type TaskStatus =
   | 'NOT_STARTED'

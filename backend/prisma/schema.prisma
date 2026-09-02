@@ -105,6 +105,10 @@ enum TaskVertical {
   TECHNICAL_PRESALES // 10. Technical Presales
   PROJECT_MANAGEMENT // 11. Project Management
   ADMINISTRATION // 12. Administration
+  ERP_BUSINESS_APPLICATIONS // 13. ERP & Business Applications
+  CLOUD_SERVICES // 14. Cloud Services
+  DATA_ANALYTICS // 15. Data & Analytics
+  HUMAN_RESOURCES // 16. Human Resources
 }
 
 // Delivery channel for a task reminder - a reminder can fire on more than one
@@ -140,6 +144,10 @@ enum TaskCategory {
   INTRODUCTION
   QUALIFICATION
   SUBMISSION
+  TRAINING
+  DOCUMENTATION
+  MIGRATION
+  AUDIT_COMPLIANCE
 }
 
 // From the Validation sheet's Column C.

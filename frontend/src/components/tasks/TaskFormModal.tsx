@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Paperclip, Trash2, FileText } from 'lucide-react';
+import { X, Trash2, FileText, ClipboardList, UploadCloud } from 'lucide-react';
 import DotLoader from '@/components/shared/DotLoader';
 import { useTaskOptions } from '@/hooks/useTaskOptions';
 import { useAuthStore } from '@/stores/authStore';
@@ -70,6 +70,18 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+
+/** Small uppercase divider between logical groups of fields - breaks the long form into scannable sections. */
+function SectionLabel({ children, first }: { children: string; first?: boolean }) {
+  return (
+    <p
+      className="eyebrow"
+      style={{ marginTop: first ? 0 : 6, marginBottom: -4, paddingTop: first ? 0 : 14, borderTop: first ? undefined : '1px solid var(--border)' }}
+    >
+      {children}
+    </p>
+  );
+}
 
 function AttachmentChip({
   name, isImage, thumbUrl, onRemove, removing,
@@ -165,6 +177,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
 
   const startTime = watch('startTime');
   const endTime = watch('endTime');
+  const percentComplete = watch('percentComplete');
 
   useEffect(() => {
     const hours = computeHours(startTime, endTime);
@@ -210,11 +223,15 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(10,20,15,0.45)' }}>
       <div className="card w-full" style={{ maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="card-head" style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
-          <span className="card-title">{initial ? 'Edit Task' : 'Log a Task'}</span>
+          <span className="card-title flex items-center gap-2">
+            <ClipboardList size={17} style={{ color: 'var(--green)' }} />
+            {initial ? 'Edit Task' : 'Log a Task'}
+          </span>
           <button className="icon-btn" onClick={onClose} type="button"><X size={16} /></button>
         </div>
 
         <form className="card-pad col" style={{ gap: 14 }} onSubmit={handleSubmit(async (v) => { await onSubmit(v, files); })}>
+          <SectionLabel first>Basics</SectionLabel>
           {assignableUsers && assignableUsers.length > 0 && !initial && (
             <div className="field">
               <label className="label" htmlFor="task-user">Log for</label>
@@ -266,6 +283,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
             </div>
           </div>
 
+          <SectionLabel>Details</SectionLabel>
           <div className="field">
             <label className="label" htmlFor="task-description">Task description</label>
             <textarea id="task-description" className="eoc-textarea" rows={2} {...register('description')} />
@@ -288,6 +306,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
             </div>
           </div>
 
+          <SectionLabel>Schedule &amp; Progress</SectionLabel>
           <div className="grid grid-cols-3 gap-3">
             <div className="field">
               <label className="label" htmlFor="task-start">Start time</label>
@@ -314,10 +333,23 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
           </div>
 
           <div className="field">
-            <label className="label" htmlFor="task-percent">% Complete</label>
-            <input id="task-percent" className="input" type="number" min={0} max={100} {...register('percentComplete')} />
+            <div className="flex items-center justify-between">
+              <label className="label" htmlFor="task-percent">% Complete</label>
+              <span className="mono tnum" style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>{percentComplete}%</span>
+            </div>
+            <input
+              id="task-percent"
+              className="range-slider"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              style={{ ['--range-fill' as string]: `${percentComplete}%` }}
+              {...register('percentComplete')}
+            />
           </div>
 
+          <SectionLabel>Notes</SectionLabel>
           <div className="field">
             <label className="label" htmlFor="task-deliverable">Key deliverable / expected outcome</label>
             <textarea id="task-deliverable" className="eoc-textarea" rows={2} {...register('keyDeliverable')} />
@@ -328,20 +360,22 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
             <textarea id="task-blockers" className="eoc-textarea" rows={2} {...register('blockersNotes')} />
           </div>
 
+          <SectionLabel>Attachments</SectionLabel>
           <div className="field">
             <label className="label" htmlFor="task-files">Screenshots / proof of work</label>
+            <label htmlFor="task-files" className="file-dropzone">
+              <UploadCloud size={20} />
+              <span>Click to attach screenshots or a PDF</span>
+              <span className="file-dropzone-hint">up to {MAX_ATTACHMENTS} files, 10MB each</span>
+            </label>
             <input
               id="task-files"
-              className="input"
+              className="sr-only"
               type="file"
               accept={ALLOWED_ATTACHMENT_ACCEPT}
               multiple
               onChange={handleFilesSelected}
             />
-            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-              <Paperclip size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
-              Attach screenshots (or a PDF) as proof of work - up to {MAX_ATTACHMENTS} files, 10MB each.
-            </span>
             {fileError && <span className="field-error">{fileError}</span>}
 
             {hasAnyAttachments && (

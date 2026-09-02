@@ -18,6 +18,10 @@ export const VERTICAL_LABELS: Record<TaskVertical, string> = {
   TECHNICAL_PRESALES: '10. Technical Presales',
   PROJECT_MANAGEMENT: '11. Project Management',
   ADMINISTRATION: '12. Administration',
+  ERP_BUSINESS_APPLICATIONS: '13. ERP & Business Applications',
+  CLOUD_SERVICES: '14. Cloud Services',
+  DATA_ANALYTICS: '15. Data & Analytics',
+  HUMAN_RESOURCES: '16. Human Resources',
 };
 
 export const CATEGORY_LABELS: Record<TaskCategory, string> = {
@@ -34,6 +38,10 @@ export const CATEGORY_LABELS: Record<TaskCategory, string> = {
   INTRODUCTION: 'Introduction',
   QUALIFICATION: 'Qualification',
   SUBMISSION: 'Submission',
+  TRAINING: 'Training',
+  DOCUMENTATION: 'Documentation',
+  MIGRATION: 'Migration',
+  AUDIT_COMPLIANCE: 'Audit / Compliance',
 };
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
