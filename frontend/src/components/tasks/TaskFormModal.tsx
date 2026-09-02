@@ -343,7 +343,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
               type="range"
               min={0}
               max={100}
-              step={5}
+              step={1}
               style={{ ['--range-fill' as string]: `${percentComplete}%` }}
               {...register('percentComplete')}
             />
