@@ -11,7 +11,7 @@ How HTTPS was set up for the Kazi Yangu deployment on `75.119.136.33`. Written a
 | Web server | nginx 1.24.0 |
 | Certificate | Let's Encrypt, ECDSA, auto-renewing |
 | Issued | 2026-08-30 → expires 2026-11-28 |
-| Certbot account email | briankerio47@gmail.com |
+| Certbot account email | br******@gmail.com |
 
 `http://tasks.millenium.co.ke/` and `http://75.119.136.33/` both redirect (301) to the HTTPS URL above.
 
@@ -53,7 +53,7 @@ Installing the `certbot` package on Ubuntu auto-creates and enables `certbot.tim
 
 ```bash
 certbot --nginx -d tasks.millenium.co.ke \
-  --non-interactive --agree-tos -m briankerio47@gmail.com --redirect
+  --non-interactive --agree-tos -m br******47@gmail.com --redirect
 ```
 
 The `--nginx` plugin found the `server_name tasks.millenium.co.ke` block in `app.conf`, completed the HTTP-01 challenge through it, then **edited `app.conf` itself**: added a `listen 443 ssl` block with the `ssl_certificate`/`ssl_certificate_key` directives, and (because of `--redirect`) turned the plain port-80 block for that domain into a redirect to HTTPS. All Certbot-managed lines are tagged `# managed by Certbot` in the file; don't hand-edit those, re-run Certbot instead.
