@@ -15,7 +15,7 @@ How HTTPS was set up for the Kazi Yangu deployment on `75.119.136.33`. Written a
 
 `http://tasks.millenium.co.ke/` and `http://75.119.136.33/` both redirect (301) to the HTTPS URL above.
 
-## Starting pointk
+## Starting point
 
 Before this work, the app was reachable only at `http://75.119.136.33/`: one nginx site (`app.conf`) with `server_name _;` (catch-all) serving the frontend and proxying `/api/` and `/socket.io/` to the Node backend on `127.0.0.1:4000`. No domain, no TLS, no Certbot installed. See `.github/workflows/deploy.yml` for how code gets onto this server (that pipeline only rebuilds the app; it does not touch nginx or certificates, both are managed by hand per this document).
 

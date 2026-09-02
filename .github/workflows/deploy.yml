@@ -1,9 +1,12 @@
 name: Deploy
 
 # Auto-deploys to the production server on every push to master, or on
-# demand from the Actions tab. Pulls the new code on the server and rebuilds
-# in place - see the note above the script below for what this deliberately
-# does NOT do.
+# demand from the Actions tab. The runner checks out the code (using its
+# own automatic GitHub auth - no credentials needed) and copies it to the
+# server over SCP, then SSHes in just to install/build/restart. The server
+# itself never talks to GitHub, so it can't hit the "could not read
+# Username for https://github.com" auth failure a server-side `git fetch`
+# was running into.
 on:
   push:
     branches: [master]
@@ -13,7 +16,20 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy over SSH
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy source to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "backend/,frontend/,!backend/node_modules,!frontend/node_modules"
+          target: /var/www/app
+          overwrite: true
+
+      - name: Install, build & restart
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -23,9 +39,6 @@ jobs:
           script: |
             set -e
             cd /var/www/app
-
-            git fetch origin master
-            git reset --hard origin/master
 
             echo "--- backend ---"
             cd backend
@@ -40,7 +53,7 @@ jobs:
             echo "--- restart ---"
             pm2 restart app-backend
 
-            echo "Deploy complete: $(git rev-parse --short HEAD)"
+            echo "Deploy complete: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
             # Deliberately NOT run here: `prisma db push`. This project's
             # DATABASE_URL is Supabase's pooled (pgbouncer) connection string,
