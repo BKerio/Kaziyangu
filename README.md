@@ -1,4 +1,4 @@
-# Millenium Task Sheet ("Kazi yangu")
+# Millenium Task Sheet ("Kazi Yangu")
 
 Millenium Solutions E.A Ltd.'s internal task management system, known around the office by its Swahili nickname **"Kazi Yangu"** ("my work"). An internal web app for logging daily work, tracking a sales opportunity pipeline, running an attachee/intern attendance-and-logbook program, and coordinating a small team's calendar, with an optional WhatsApp bot for logging tasks on the go. Originally modelled on a "Master Daily Tasks" spreadsheet.
 
