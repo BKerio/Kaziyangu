@@ -174,4 +174,29 @@ export class MicrosoftOAuthService {
       return null;
     }
   }
+
+  /**
+   * Unread message count in the signed-in user's own inbox - uses the same
+   * Mail.Read scope already granted for "Login with Outlook", so this is
+   * purely self-service: an access token only ever unlocks its own owner's
+   * mailbox, never anyone else's. Returns null (and logs) on any failure.
+   */
+  async fetchUnreadCount(accessToken: string): Promise<number | null> {
+    try {
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/mailFolders/inbox?$select=unreadItemCount', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!res.ok) {
+        this.log.error({ status: res.status }, 'Microsoft unread-mail lookup failed');
+        return null;
+      }
+
+      const data = (await res.json()) as { unreadItemCount?: number };
+      return data.unreadItemCount ?? 0;
+    } catch (err) {
+      this.log.error({ err }, 'Microsoft unread-mail lookup errored');
+      return null;
+    }
+  }
 }

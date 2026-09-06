@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, CalendarDays, Clock, ExternalLink, History, MapPin, Plug, PlugZap, Unplug } from 'lucide-react';
+import { CalendarClock, CalendarDays, Clock, ExternalLink, History, MapPin, Plug, PlugZap, Unplug, MailWarning } from 'lucide-react';
 import api from '@/api/client';
 import { confirmDialog } from '@/lib/alert';
 import { fmtDate, fmtTime, nairobiTodayISO } from '@/lib/datetime';
@@ -147,9 +147,10 @@ function MyCalendarPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['microsoft', 'calendar'],
     queryFn: async () => {
-      const res = await api.get<{ data: { connected: boolean; events: MicrosoftCalendarEvent[] } }>('/auth/microsoft/calendar', {
-        params: { days: LOOKAHEAD_DAYS, pastDays: LOOKBACK_DAYS },
-      });
+      const res = await api.get<{ data: { connected: boolean; events: MicrosoftCalendarEvent[]; unreadCount: number | null } }>(
+        '/auth/microsoft/calendar',
+        { params: { days: LOOKAHEAD_DAYS, pastDays: LOOKBACK_DAYS } }
+      );
       return res.data.data;
     },
   });
@@ -232,7 +233,7 @@ function MyCalendarPage() {
       ) : (
         <>
           {/* Stat row */}
-          <div className="stat-grid stat-grid-3">
+          <div className="stat-grid">
             <div className="stat">
               <div className="stat-ico" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}><CalendarClock /></div>
               <div className="stat-label">Next Meeting</div>
@@ -252,6 +253,12 @@ function MyCalendarPage() {
               <div className="stat-label">Last 7 Days</div>
               <div className="stat-val">{recentCount}</div>
               <div className="stat-foot">meeting{recentCount === 1 ? '' : 's'} completed</div>
+            </div>
+            <div className="stat">
+              <div className="stat-ico" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}><MailWarning /></div>
+              <div className="stat-label">Unread Mail</div>
+              <div className="stat-val">{data.unreadCount ?? '—'}</div>
+              <div className="stat-foot">in your Outlook inbox</div>
             </div>
           </div>
 

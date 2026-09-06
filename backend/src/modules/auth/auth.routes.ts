@@ -156,15 +156,17 @@ export function authRoutes(ctx: AppContext): Router {
 
     /**
      * GET /auth/microsoft/calendar?days=14&pastDays=7 - the signed-in user's
-     * own Outlook events from `pastDays` ago through `days` ahead. `pastDays`
-     * defaults to 0 (future-only) for backward compatibility; the frontend's
-     * dashboard view passes a positive value to also show recently-ended
-     * meetings ("last 2") alongside what's upcoming.
+     * own Outlook events from `pastDays` ago through `days` ahead, plus their
+     * own inbox's unread count (same Mail.Read scope already granted by the
+     * connect flow - never another user's mailbox). `pastDays` defaults to 0
+     * (future-only) for backward compatibility; the frontend's dashboard view
+     * passes a positive value to also show recently-ended meetings ("last 2")
+     * alongside what's upcoming.
      */
     router.get('/microsoft/calendar', authenticate, async (req, res) => {
       const accessToken = await microsoftAccounts.getValidAccessToken(req.user.userId);
       if (!accessToken) {
-        res.send({ ok: true, data: { connected: false, events: [] } });
+        res.send({ ok: true, data: { connected: false, events: [], unreadCount: null } });
         return;
       }
 
@@ -172,9 +174,12 @@ export function authRoutes(ctx: AppContext): Router {
       const pastDays = Math.min(Math.max(parseInt(String(req.query.pastDays ?? '0'), 10) || 0, 0), 30);
       const from = new Date(Date.now() - pastDays * 24 * 60 * 60 * 1000);
       const to = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-      const events = await microsoft.fetchCalendarEvents(accessToken, from.toISOString(), to.toISOString());
+      const [events, unreadCount] = await Promise.all([
+        microsoft.fetchCalendarEvents(accessToken, from.toISOString(), to.toISOString()),
+        microsoft.fetchUnreadCount(accessToken),
+      ]);
 
-      res.send({ ok: true, data: { connected: true, events: events ?? [] } });
+      res.send({ ok: true, data: { connected: true, events: events ?? [], unreadCount } });
     });
   }
 
