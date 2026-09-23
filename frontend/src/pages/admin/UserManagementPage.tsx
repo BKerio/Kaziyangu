@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   UserPlus, ChevronLeft as CaretLeft, ChevronRight as CaretRight,
-  Pencil as PencilSimple, Trash2, X, Users, Power,
+  Pencil as PencilSimple, Trash2, X, Users, Power, FileSpreadsheet,
 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notificationStore';
 import DotLoader from '@/components/shared/DotLoader';
@@ -43,8 +43,65 @@ function departmentLabel(dept?: string | null) {
   return DEPARTMENT_OPTIONS.find((d) => d.value === dept)?.label ?? '-';
 }
 
+async function fetchAllUsers(roleFilter: Role | 'ALL'): Promise<User[]> {
+  const all: User[] = [];
+  const limit = 500;
+  for (let page = 1; ; page++) {
+    const params: Record<string, string | number> = { page, limit };
+    if (roleFilter !== 'ALL') params.role = roleFilter;
+    const res = await api.get<PaginatedResponse<User>>('/admin/users', { params });
+    all.push(...res.data.data);
+    if (page >= res.data.meta.totalPages) return all;
+  }
+}
+
+async function exportUsersToExcel(users: User[], roleFilter: Role | 'ALL') {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Users');
+
+  sheet.columns = [
+    { header: 'Name', key: 'name', width: 28 },
+    { header: 'Email', key: 'email', width: 34 },
+    { header: 'Phone', key: 'phone', width: 18 },
+    { header: 'Role', key: 'role', width: 14 },
+    { header: 'Department', key: 'department', width: 24 },
+    { header: 'Tasks', key: 'tasks', width: 10 },
+    { header: 'Status', key: 'status', width: 12 },
+    { header: 'Created', key: 'createdAt', width: 14, style: { numFmt: 'yyyy-mm-dd' } },
+  ];
+
+  users.forEach((u) => sheet.addRow({
+    name: u.name,
+    email: u.email,
+    phone: u.phone || '',
+    role: roleLabel(u.role),
+    department: departmentLabel(u.department),
+    tasks: u._count?.tasks ?? 0,
+    status: u.isActive ? 'Active' : 'Inactive',
+    createdAt: u.createdAt ? new Date(u.createdAt) : null,
+  }));
+
+  const header = sheet.getRow(1);
+  header.font = { bold: true };
+  header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  sheet.autoFilter = { from: 'A1', to: 'H1' };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const scope = roleFilter === 'ALL' ? 'all' : roleFilter.toLowerCase();
+  a.href = url;
+  a.download = `users-${scope}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function UserManagementPage() {
   const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
   const [roleFilter, setRoleFilter] = useState<Role | 'ALL'>('ALL');
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
@@ -109,6 +166,18 @@ function UserManagementPage() {
     if (confirmed) deleteMutation.mutate(user.id);
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const all = await fetchAllUsers(roleFilter);
+      await exportUsersToExcel(all, roleFilter);
+    } catch (err: any) {
+      addNotification({ type: 'error', title: 'Export failed', message: err?.response?.data?.message || 'Please try again.' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const users = data?.data ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: 15, totalPages: 0 };
 
@@ -120,9 +189,15 @@ function UserManagementPage() {
           <h2 className="text-2xl font-bold mt-1" style={{ color: 'var(--ink)' }}>Users</h2>
           <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{meta.total} people in the workspace</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-          <UserPlus size={16} /> Add User
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-soft" onClick={handleExport} disabled={exporting || meta.total === 0}>
+            {exporting ? <DotLoader size={16} /> : <FileSpreadsheet size={16} />}
+            {exporting ? 'Exporting…' : 'Export to Excel'}
+          </button>
+          <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+            <UserPlus size={16} /> Add User
+          </button>
+        </div>
       </div>
 
       <div className="card card-pad">
