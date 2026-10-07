@@ -7,7 +7,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, CircleAlert } from 'l
 import api from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import logo from '@/assets/logos/logo(black).png';
 
 const loginSchema = z.object({
@@ -161,7 +161,7 @@ function LoginPage() {
               style={{ marginTop: 4 }}
             >
               {isSubmitting ? (
-                <><DotLoader size={20} /> Signing in…</>
+                <><AppLoader size={24} /> Signing in…</>
               ) : (
                 <>Sign in <ArrowRight size={16} /></>
               )}

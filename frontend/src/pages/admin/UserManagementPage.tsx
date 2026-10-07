@@ -8,7 +8,7 @@ import {
   Pencil as PencilSimple, Trash2, X, Users, Power, FileSpreadsheet,
 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notificationStore';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import api from '@/api/client';
 import { DEPARTMENT_OPTIONS, PaginatedResponse, Role, User } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
@@ -191,7 +191,7 @@ function UserManagementPage() {
         </div>
         <div className="flex gap-2">
           <button className="btn btn-soft" onClick={handleExport} disabled={exporting || meta.total === 0}>
-            {exporting ? <DotLoader size={16} /> : <FileSpreadsheet size={16} />}
+            {exporting ? <AppLoader size={20} /> : <FileSpreadsheet size={16} />}
             {exporting ? 'Exporting…' : 'Export to Excel'}
           </button>
           <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
@@ -338,7 +338,7 @@ function CreateUserModal({ onClose, onSubmit, submitting }: {
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary flex-1" disabled={submitting}>
-              {submitting ? <DotLoader size={16} /> : null}
+              {submitting ? <AppLoader size={20} /> : null}
               {submitting ? 'Creating…' : 'Create user'}
             </button>
           </div>
@@ -413,7 +413,7 @@ function EditUserModal({ user, onClose, onSubmit, submitting }: {
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary flex-1" disabled={submitting}>
-              {submitting ? <DotLoader size={16} /> : null}
+              {submitting ? <AppLoader size={20} /> : null}
               {submitting ? 'Saving…' : 'Save changes'}
             </button>
           </div>

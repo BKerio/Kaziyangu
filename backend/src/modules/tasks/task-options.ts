@@ -42,6 +42,10 @@ export const CATEGORY_LABELS: Record<TaskCategory, string> = {
   DOCUMENTATION: 'Documentation',
   MIGRATION: 'Migration',
   AUDIT_COMPLIANCE: 'Audit / Compliance',
+  TENDER: 'Tender',
+  CUSTOMER_MEETING: 'Customer Meeting',
+  PREQUALIFICATION: 'Prequalifications',
+  WORKSHOP: 'Workshops',
 };
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {

@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   User as UserIcon, Phone, Mail, Lock, Eye, EyeOff, KeyRound,
 } from 'lucide-react';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import { getMyProfile, updateMyProfile, getErrorMessage } from '@/api/account';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -158,7 +158,7 @@ function ProfilePage() {
             </div>
 
             <button type="submit" className="btn btn-primary btn-block" disabled={profileMutation.isPending || !profileDirty}>
-              {profileMutation.isPending ? <DotLoader size={16} /> : null}
+              {profileMutation.isPending ? <AppLoader size={20} /> : null}
               {profileMutation.isPending ? 'Saving…' : 'Save changes'}
             </button>
           </form>
@@ -252,7 +252,7 @@ function ProfilePage() {
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary flex-1" disabled={passwordMutation.isPending}>
-                {passwordMutation.isPending ? <DotLoader size={16} /> : null}
+                {passwordMutation.isPending ? <AppLoader size={20} /> : null}
                 {passwordMutation.isPending ? 'Updating…' : 'Update password'}
               </button>
             </div>

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, X, CheckCircle2, Clock, Trash2, CalendarCheck } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notificationStore';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import api from '@/api/client';
 import { Attachee, Attendance, AttendanceStatus, PaginatedResponse, WorkMode } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
@@ -252,7 +252,7 @@ function LogAttendanceModal({ attachees, onClose, onSubmit, submitting }: {
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary flex-1" disabled={submitting}>
-              {submitting ? <DotLoader size={16} /> : null}
+              {submitting ? <AppLoader size={20} /> : null}
               {submitting ? 'Saving…' : 'Log attendance'}
             </button>
           </div>

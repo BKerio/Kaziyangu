@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import { useAuthStore } from '@/stores/authStore';
 import { toNairobiInput, nairobiInputToISO, NBO_TZ } from '@/lib/datetime';
 import { REMINDER_CHANNEL_OPTIONS, ReminderChannel, TaskReminder } from '@/types/api';
@@ -135,7 +135,7 @@ function ReminderFormModal({ task, initial, onClose, onSubmit, submitting }: Rem
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={submitting}>Cancel</button>
             <button type="button" className="btn btn-primary flex-1" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? <DotLoader size={16} /> : null}
+              {submitting ? <AppLoader size={20} /> : null}
               {submitting ? 'Saving…' : initial ? 'Save changes' : 'Set reminder'}
             </button>
           </div>

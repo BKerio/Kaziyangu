@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, Trash2, FileText, ClipboardList, UploadCloud } from 'lucide-react';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import { useTaskOptions } from '@/hooks/useTaskOptions';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/api/client';
@@ -111,7 +111,7 @@ function AttachmentChip({
         title="Remove"
         style={{ marginLeft: 'auto', flexShrink: 0 }}
       >
-        {removing ? <DotLoader size={12} /> : <Trash2 size={12} />}
+        {removing ? <AppLoader size={16} /> : <Trash2 size={12} />}
       </button>
     </div>
   );
@@ -405,7 +405,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary flex-1" disabled={submitting}>
-              {submitting ? <DotLoader size={16} /> : null}
+              {submitting ? <AppLoader size={20} /> : null}
               {submitting ? 'Saving…' : initial ? 'Save changes' : 'Log task'}
             </button>
           </div>

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ChangeEvent, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Paperclip, Trash2, FileText } from 'lucide-react';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import { useNotificationStore } from '@/stores/notificationStore';
 import api from '@/api/client';
 import { uploadOpportunityAttachments } from '@/lib/opportunityAttachments';
@@ -225,7 +225,7 @@ function OpportunityFormModal({ staff, onClose, onCreated }: {
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={createMutation.isPending}>Cancel</button>
             <button type="submit" className="btn btn-primary flex-1" disabled={createMutation.isPending}>
-              {createMutation.isPending ? <DotLoader size={16} /> : null}
+              {createMutation.isPending ? <AppLoader size={20} /> : null}
               {createMutation.isPending ? 'Adding…' : 'Add opportunity'}
             </button>
           </div>

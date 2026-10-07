@@ -514,34 +514,15 @@ h1, h2 { font-family: var(--font-display); }
 .live-dot { animation: pulse-ring 2s infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; }
-.dot-loader {
-  width: 1.2em;
-  height: 1.2em;
-  font-size: 18px;
+.app-loader {
   display: inline-block;
-  position: relative;
   flex-shrink: 0;
-  perspective: 2.6em;
+  vertical-align: middle;
+  animation: app-loader-step .8s steps(8) infinite;
 }
-.dot-loader > span {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  animation: dot-loader-spin 1.35s linear infinite;
-}
-.dot-loader i {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0.26em;
-  height: 0.26em;
-  margin: -0.13em 0 0 -0.13em;
-  border-radius: 99px;
-  background: currentColor;
-  transform: rotateZ(calc(var(--i) * 60deg)) translateY(-0.42em);
-}
-@keyframes dot-loader-spin {
-  to { transform: rotateX(360deg); }
+@keyframes app-loader-step { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .app-loader { animation-duration: 1.6s !important; }
 }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .fade-up { animation: fadeUp .4s cubic-bezier(.16,1,.3,1) both; }

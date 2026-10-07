@@ -64,7 +64,11 @@ export type TaskCategory =
   | 'TRAINING'
   | 'DOCUMENTATION'
   | 'MIGRATION'
-  | 'AUDIT_COMPLIANCE';
+  | 'AUDIT_COMPLIANCE'
+  | 'TENDER'
+  | 'CUSTOMER_MEETING'
+  | 'PREQUALIFICATION'
+  | 'WORKSHOP';
 
 export type TaskStatus =
   | 'NOT_STARTED'

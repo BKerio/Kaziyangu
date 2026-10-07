@@ -148,6 +148,10 @@ enum TaskCategory {
   DOCUMENTATION
   MIGRATION
   AUDIT_COMPLIANCE
+  TENDER
+  CUSTOMER_MEETING
+  PREQUALIFICATION
+  WORKSHOP
 }
 
 // From the Validation sheet's Column C.

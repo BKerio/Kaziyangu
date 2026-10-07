@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FilePlus, X, CheckCircle2, Clock, AlertCircle, FileCheck } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notificationStore';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/api/client';
 import { PaginatedResponse, ReportStatus, TaskReport } from '@/types/api';
@@ -187,7 +187,7 @@ function AddReportModal({ onClose, onSubmit, submitting }: {
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary flex-1" disabled={submitting}>
-              {submitting ? <DotLoader size={16} /> : null}
+              {submitting ? <AppLoader size={20} /> : null}
               {submitting ? 'Submitting…' : 'Submit entry'}
             </button>
           </div>

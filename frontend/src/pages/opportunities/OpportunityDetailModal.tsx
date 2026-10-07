@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, Trash2, Plus, Phone, Paperclip, FileText, Download } from 'lucide-react';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/api/client';
@@ -455,14 +455,14 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
                         disabled={deleteAttachmentMutation.isPending && deleteAttachmentMutation.variables === a.id}
                       >
                         {deleteAttachmentMutation.isPending && deleteAttachmentMutation.variables === a.id
-                          ? <DotLoader size={12} />
+                          ? <AppLoader size={16} />
                           : <Trash2 size={12} />}
                       </button>
                     </div>
                   ))}
                   {uploadMutation.isPending && (
                     <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
-                      <DotLoader size={14} /> Uploading…
+                      <AppLoader size={18} /> Uploading…
                     </div>
                   )}
                 </div>
@@ -509,7 +509,7 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
                   disabled={activityMutation.isPending}
                   onClick={handleActivitySubmit((v) => activityMutation.mutate(v))}
                 >
-                  {activityMutation.isPending ? <DotLoader size={14} /> : <Plus size={14} />} Log
+                  {activityMutation.isPending ? <AppLoader size={18} /> : <Plus size={14} />} Log
                 </button>
               </div>
             </section>
@@ -604,7 +604,7 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
             <div className="flex gap-2" style={{ marginTop: 4, position: 'sticky', bottom: 0, background: 'var(--surface)', paddingTop: 8 }}>
               <button type="button" className="btn btn-ghost flex-1" onClick={onClose} disabled={saveMutation.isPending}>Close</button>
               <button type="submit" className="btn btn-primary flex-1" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? <DotLoader size={16} /> : null}
+                {saveMutation.isPending ? <AppLoader size={20} /> : null}
                 {saveMutation.isPending ? 'Saving…' : 'Save changes'}
               </button>
             </div>

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
-import DotLoader from '@/components/shared/DotLoader';
+import AppLoader from '@/components/shared/AppLoader';
 
 /**
  * Lands here after GET /auth/microsoft/callback on the backend redirects the
@@ -56,7 +56,7 @@ function MicrosoftCallbackPage() {
   return (
     <div className="login-page">
       <div className="login-card fade-up" style={{ alignItems: 'center', textAlign: 'center', gap: 14 }}>
-        <DotLoader size={28} />
+        <AppLoader size={64} color="var(--red)" label="Signing you in" />
         <p className="login-sub" style={{ margin: 0 }}>Signing you in…</p>
       </div>
     </div>
