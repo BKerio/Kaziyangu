@@ -1,6 +1,7 @@
 import { Outlet, Navigate } from 'react-router-dom';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import TopBar from '@/components/layout/TopBar';
 import { socket } from '@/lib/socket';
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -19,6 +20,9 @@ function AppShell() {
   const user = useAuthStore((s) => s.user);
 
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const isMobile = useIsMobile();
   const [theme, setTheme] = useState<'light' | 'dark'>(
     () => (localStorage.getItem('theme') as 'light' | 'dark') ?? 'light'
   );
@@ -95,12 +99,15 @@ function AppShell() {
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
+        connected={isConnected}
+        drawerOpen={drawerOpen}
+        onCloseDrawer={closeDrawer}
       />
       <div className="main">
         <TopBar
           theme={theme}
           onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-          onToggleSidebar={() => setCollapsed((c) => !c)}
+          onToggleSidebar={() => (isMobile ? setDrawerOpen(true) : setCollapsed((c) => !c))}
         />
         {!isConnected && (
           <div className="banner-warn">
