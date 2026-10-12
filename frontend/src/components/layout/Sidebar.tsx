@@ -166,15 +166,6 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
       >
         <div className="sidebar-inner">
           <div className="sidebar-head">
-            <button
-              onClick={isMobile ? onCloseDrawer : onToggleCollapse}
-              className="sidebar-collapse-btn"
-              title={isMobile ? 'Close menu' : collapsed ? 'Pin sidebar open' : 'Collapse sidebar'}
-              aria-label={isMobile ? 'Close menu' : collapsed ? 'Pin sidebar open' : 'Collapse sidebar'}
-            >
-              {isMobile ? <X size={18} /> : collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            </button>
-
             <div className="brand-crest">
               <div className="brand-logo">
                 <img src={logo} draggable={false} alt="Millenium Solutions" />
@@ -187,10 +178,18 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
             </div>
 
             <div className="brand-text">
-              <span className="brand-word-your">Your Task,</span>
-              <span className="brand-word-my">My Task</span>
+              <span className="brand-title">Your Task, My Task</span>
               <span className="brand-org">Millenium Solutions E.A Limited</span>
             </div>
+
+            <button
+              onClick={isMobile ? onCloseDrawer : onToggleCollapse}
+              className="sidebar-collapse-btn"
+              title={isMobile ? 'Close menu' : collapsed ? 'Pin sidebar open' : 'Collapse sidebar'}
+              aria-label={isMobile ? 'Close menu' : collapsed ? 'Pin sidebar open' : 'Collapse sidebar'}
+            >
+              {isMobile ? <X size={18} /> : collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            </button>
           </div>
 
           <div className="sidebar-search">
@@ -220,12 +219,7 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
             {shownSections.length === 0 && <p className="nav-empty">No pages match “{query}”.</p>}
             {shownSections.map((section, idx) => (
               <div className="nav-group" key={section.title ?? `section-${idx}`}>
-                {section.title && (
-                  <div className="nav-group-label">
-                    <span className="nav-group-dot" aria-hidden="true" />
-                    <span className="nav-group-text">{section.title}</span>
-                  </div>
-                )}
+                {section.title && <div className="nav-group-label">{section.title}</div>}
                 {section.items.map((item) => {
                   const isActive = item.path === activePath;
                   return (
@@ -237,9 +231,7 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
                       aria-current={isActive ? 'page' : undefined}
                       title={collapsed && !peek ? item.label : undefined}
                     >
-                      <span className="nav-tile">
-                        <item.Icon size={18} aria-hidden="true" />
-                      </span>
+                      <item.Icon className="nav-icon" size={20} aria-hidden="true" />
                       <span className="nav-label">{item.label}</span>
                     </Link>
                   );
@@ -249,10 +241,7 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
 
             {showTimeTracker && !q && (
               <div className="nav-group">
-                <div className="nav-group-label">
-                  <span className="nav-group-dot" aria-hidden="true" />
-                  <span className="nav-group-text">Intelligence</span>
-                </div>
+                <div className="nav-group-label">Intelligence</div>
                 <SidebarTimeTracker />
               </div>
             )}

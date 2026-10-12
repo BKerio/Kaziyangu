@@ -7,11 +7,11 @@ import { useTaskOptions } from '@/hooks/useTaskOptions';
 import { MyTimeStats, TimeBalanceLabel } from '@/types/api';
 
 const BALANCE_COPY: Record<TimeBalanceLabel, { title: string; tone: string }> = {
-  none: { title: 'No data yet', tone: 'var(--nav-muted)' },
-  narrow: { title: 'Too narrow', tone: '#FF8A80' },
-  focused: { title: 'Focused', tone: '#FFB74D' },
-  balanced: { title: 'Balanced', tone: '#81C784' },
-  well_rounded: { title: 'Well-rounded', tone: '#4FC3F7' },
+  none: { title: 'No data yet', tone: 'var(--sb-muted)' },
+  narrow: { title: 'Too narrow', tone: 'var(--sb-tone-narrow)' },
+  focused: { title: 'Focused', tone: 'var(--sb-tone-focused)' },
+  balanced: { title: 'Balanced', tone: 'var(--sb-tone-balanced)' },
+  well_rounded: { title: 'Well-rounded', tone: 'var(--sb-tone-rounded)' },
 };
 
 function shortLabel(label: string): string {
