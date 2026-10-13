@@ -18,7 +18,7 @@ Millenium Solutions E.A Ltd.'s internal task management system, known around the
 - **Microsoft/Outlook login** (optional): OAuth account linking and calendar read access.
 - Realtime notifications over Socket.io.
 
-## Tech stack
+## Tech stack used.
 
 | | Backend | Frontend |
 |---|---|---|
