@@ -99,14 +99,14 @@ function extractInput(message: IncomingMessage): string {
   return '';
 }
 
-// WhatsApp text can't carry a custom icon, so a verified staff member's name
-// gets the one emoji the assistant uses - the closest match to the blue
-// badge shown next to staff names in the web portal.
+// WhatsApp text can't carry a custom icon, so a verified user's name gets the
+// one emoji the assistant uses - the closest match to the blue badge shown
+// next to names in the web portal.
 const VERIFIED_MARK = '☑️';
 
-/** "*Brian Kerio* ☑️" for active staff; attachees get the plain bold name. */
-function displayName(user: Pick<User, 'name' | 'role' | 'isActive'>, name = user.name): string {
-  return user.isActive && user.role !== Role.ATTACHEE ? `*${name}* ${VERIFIED_MARK}` : `*${name}*`;
+/** "*Brian Kerio* ☑️" for every active account, matching the web portal. */
+function displayName(user: Pick<User, 'name' | 'isActive'>, name = user.name): string {
+  return user.isActive ? `*${name}* ${VERIFIED_MARK}` : `*${name}*`;
 }
 
 function taskWord(count: number): string {

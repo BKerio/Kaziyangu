@@ -16,6 +16,7 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { confirmDialog, promptDialog } from '@/lib/alert';
 import { nairobiTodayISO } from '@/lib/datetime';
 import { OutOfOfficeEntry } from '@/types/api';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -178,6 +179,7 @@ function OutPersonMark({
           >
             {displayName}
           </span>
+          <VerifiedBadge size={12} />
         </div>
       ) : (
         <span
@@ -201,6 +203,7 @@ function OutPersonMark({
           style={{ color: 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}
         >
           {displayName}
+          <VerifiedBadge size={13} />
         </span>
       )}
       <span

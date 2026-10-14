@@ -12,7 +12,7 @@ import AppLoader from '@/components/shared/AppLoader';
 import api from '@/api/client';
 import { DEPARTMENT_OPTIONS, PaginatedResponse, Role, User } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
-import VerifiedBadge, { isVerifiedStaff } from '@/components/shared/VerifiedBadge';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
 const ROLES: Role[] = ['STAFF', 'ADMIN', 'SUPER_ADMIN'];
 
@@ -231,7 +231,7 @@ function UserManagementPage() {
                   <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '10px 14px', fontWeight: 600 }}>
                       {u.name}
-                      {isVerifiedStaff(u.role, u.isActive) && <VerifiedBadge size={15} />}
+                      {u.isActive && <VerifiedBadge size={15} />}
                     </td>
                     <td style={{ padding: '10px 14px' }}>{u.email}</td>
                     <td style={{ padding: '10px 14px' }}>{u.phone || '-'}</td>

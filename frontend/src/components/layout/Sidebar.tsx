@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import VerifiedBadge, { isVerifiedStaff } from '@/components/shared/VerifiedBadge';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import {
   ClipboardList as ClipboardText,
   Users,
@@ -257,7 +257,7 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
               <span className="sidebar-user-meta">
                 <b style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name ?? 'User'}</span>
-                  {isVerifiedStaff(user?.role) && <VerifiedBadge size={15} />}
+                  {user && <VerifiedBadge size={15} />}
                 </b>
                 <span className="sidebar-role">{roleLabel}</span>
               </span>

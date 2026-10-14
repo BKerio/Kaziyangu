@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { GraduationCap, CalendarCheck, BookOpen, Users } from 'lucide-react';
 import api from '@/api/client';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Attachee, DEPARTMENT_OPTIONS } from '@/types/api';
 import SupervisedAttendance from './SupervisedAttendance';
 import SupervisedLogbook from './SupervisedLogbook';
@@ -74,7 +75,7 @@ function MyAttacheesPage() {
                     {roster.map((a) => (
                       <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '10px 14px' }}>
-                          <div style={{ fontWeight: 650, color: 'var(--ink)' }}>{a.name}</div>
+                          <div style={{ fontWeight: 650, color: 'var(--ink)' }}>{a.name}{a.isActive && <VerifiedBadge size={14} />}</div>
                           <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Reg: {a.registrationNo} • {a.email}</div>
                         </td>
                         <td style={{ padding: '10px 14px' }}>

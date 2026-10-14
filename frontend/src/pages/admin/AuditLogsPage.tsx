@@ -4,6 +4,7 @@ import { ScrollText, ChevronLeft as CaretLeft, ChevronRight as CaretRight, X, Ey
 import api from '@/api/client';
 import { AUDIT_ACTION_OPTIONS, AUDIT_SUBJECT_OPTIONS, AuditAction, AuditLog, AuditSubjectType, PaginatedResponse } from '@/types/api';
 import { fmtDateTime } from '@/lib/datetime';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
 function actionLabel(action: string) {
   return AUDIT_ACTION_OPTIONS.find((a) => a.value === action)?.label ?? action;
@@ -130,7 +131,7 @@ function AuditLogsPage() {
                     <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>{fmtDateTime(entry.createdAt)}</td>
                     <td style={{ padding: '10px 14px' }}>
                       <div className="col" style={{ gap: 1 }}>
-                        <b style={{ fontSize: 13 }}>{entry.user?.name ?? 'Unknown'}</b>
+                        <b style={{ fontSize: 13 }}>{entry.user?.name ?? 'Unknown'}{entry.user && <VerifiedBadge size={13} />}</b>
                         <span style={{ fontSize: 11, color: 'var(--muted)' }}>{entry.user?.email}</span>
                       </div>
                     </td>

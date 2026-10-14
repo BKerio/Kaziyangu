@@ -5,6 +5,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList, ResponsiveContainer,
 } from 'recharts';
 import api from '@/api/client';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { useTaskOptions } from '@/hooks/useTaskOptions';
 import {
   DEPARTMENT_OPTIONS,
@@ -81,7 +82,7 @@ function CrownedName({
       <span className="eng-crown" style={{ color: meta.crown, animationDelay: meta.delay }} aria-hidden>
         <Crown size={compact ? 14 : 22} fill="currentColor" strokeWidth={1.5} />
       </span>
-      <span className="eng-crown-name">{name}</span>
+      <span className="eng-crown-name">{name}<VerifiedBadge size={compact ? 12 : 14} /></span>
     </span>
   );
 }
@@ -289,7 +290,7 @@ function VerticalSummaryPage() {
                     <td style={{ padding: '10px 14px' }}>{r.pocHours}h</td>
                     <td style={{ padding: '14px 14px 10px' }}>
                       {r.topEngineer ? (
-                        rank ? <CrownedName name={r.topEngineer} rank={rank} compact /> : r.topEngineer
+                        rank ? <CrownedName name={r.topEngineer} rank={rank} compact /> : <>{r.topEngineer}<VerifiedBadge size={12} /></>
                       ) : (
                         '-'
                       )}

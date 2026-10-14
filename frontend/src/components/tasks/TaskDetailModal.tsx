@@ -8,6 +8,7 @@ import { attachmentFileUrl } from '@/lib/taskAttachments';
 import { TaskAttachment, WorkTask } from '@/types/api';
 import { statusPillClass } from '@/utils/taskStatus';
 import { fmtDate } from '@/lib/datetime';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
 interface TaskDetailModalProps {
   task: WorkTask;
@@ -20,12 +21,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function DetailField({ label, value }: { label: string; value?: string | number | null }) {
+function DetailField({ label, value, verified = false }: { label: string; value?: string | number | null; verified?: boolean }) {
   if (value === undefined || value === null || value === '') return null;
   return (
     <div>
       <p className="label" style={{ marginBottom: 2 }}>{label}</p>
-      <p className="text-sm" style={{ color: 'var(--ink)' }}>{value}</p>
+      <p className="text-sm" style={{ color: 'var(--ink)' }}>{value}{verified && <VerifiedBadge size={14} />}</p>
     </div>
   );
 }
@@ -66,7 +67,7 @@ function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <DetailField label="Date" value={fmtDate(task.date)} />
-            <DetailField label="Logged by" value={task.user?.name} />
+            <DetailField label="Logged by" value={task.user?.name} verified />
             <DetailField label="Vertical" value={verticalLabel} />
             <DetailField label="Category" value={categoryLabel} />
             <DetailField label="Customer / Project" value={task.customerProject} />

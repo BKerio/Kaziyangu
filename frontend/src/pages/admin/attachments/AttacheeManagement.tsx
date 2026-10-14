@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notificationStore';
 import AppLoader from '@/components/shared/AppLoader';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import api from '@/api/client';
 import { Attachee, DEPARTMENT_OPTIONS, PaginatedResponse, User } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
@@ -148,7 +149,7 @@ function AttacheeManagement() {
                 {attachees.map((a) => (
                   <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '10px 14px' }}>
-                      <div style={{ fontWeight: 650, color: 'var(--ink)' }}>{a.name}</div>
+                      <div style={{ fontWeight: 650, color: 'var(--ink)' }}>{a.name}{a.isActive && <VerifiedBadge size={14} />}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Reg: {a.registrationNo} • {a.email}</div>
                     </td>
                     <td style={{ padding: '10px 14px' }}>
