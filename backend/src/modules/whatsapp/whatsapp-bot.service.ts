@@ -12,9 +12,12 @@ import { formatTaskSummary } from './task-format.js';
 import {
   ASSISTANT_NAME,
   BACK_BUTTON,
-  MAIN_MENU_ROWS,
-  MAIN_MENU_SECTIONS,
+  MAIN_MENU_ACTION_IDS,
   MAIN_MENU_TEXT,
+  MenuSnapshot,
+  WORKWEEK_HOURS,
+  dayNudge,
+  mainMenuSections,
   MENU_FOOTER,
   MENU_TRIGGERS,
   REVIEW_BUTTONS,
@@ -32,6 +35,7 @@ import {
   greeting,
   hourSliderRows,
   organizationRow,
+  organizationShortName,
   pagedSections,
   parseHours,
   parsePercent,
@@ -201,7 +205,7 @@ function chunkBlocks(header: string, blocks: string[]): string[] {
   return chunks;
 }
 
-const MENU_ACTION_IDS = new Set([...MAIN_MENU_ROWS.map((r) => r.id), 'main_menu', 'task_add', 'task_update']);
+const MENU_ACTION_IDS = new Set(MAIN_MENU_ACTION_IDS);
 
 /**
  * Routes inbound WhatsApp messages to the daily-task wizard, backed by the
@@ -299,7 +303,7 @@ export class WhatsAppBotService {
     const normalized = input.toLowerCase().trim();
 
     if (MENU_TRIGGERS.has(normalized)) {
-      if (normalized === 'help') await this.showHelp(to);
+      if (normalized === 'help') await this.showHelp(to, user);
       else await this.showMainMenu(to, user);
       return;
     }
@@ -326,33 +330,58 @@ export class WhatsAppBotService {
   // ── Menu screens ─────────────────────────────────────────────────────────
 
   /** Greeting plus a one-line snapshot of what's been logged today. */
-  private async menuIntro(user: User): Promise<string> {
+  /** Today's and this week's totals plus the last task - everything the menu previews. */
+  private async menuSnapshot(user: User): Promise<MenuSnapshot> {
     const today = todayDateString();
-    const { data: todays } = await this.tasks.getTasks(this.actorFor(user), {
-      userId: user.id,
-      from: today,
-      to: today,
-      page: 1,
-      limit: 50,
-    });
+    const { from, to: weekTo } = weekRangeStrings();
+    const [{ data: week }, last] = await Promise.all([
+      this.tasks.getTasks(this.actorFor(user), { userId: user.id, from, to: weekTo, page: 1, limit: 200 }),
+      this.app.prisma.workTask.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        select: { category: true, organization: true },
+      }),
+    ]);
+    const todays = week.filter((t) => t.date.toISOString().slice(0, 10) === today);
+    const titleCase = (v: string) => v.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+    return {
+      todayCount: todays.length,
+      todayHours: todays.reduce((sum, t) => sum + t.hoursSpent, 0),
+      weekCount: week.length,
+      weekHours: week.reduce((sum, t) => sum + t.hoursSpent, 0),
+      lastTaskLabel: last
+        ? CATEGORY_LABELS[last.category] +
+          (last.organization ? ` · ${organizationShortName(last.organization as Organization)}` : '')
+        : null,
+      roleLine: titleCase(user.role) + (user.department ? ` · ${titleCase(user.department)}` : ''),
+    };
+  }
+
+  /** Greeting card: who you are, the date, today's and this week's progress, and a nudge. */
+  private menuIntro(user: User, s: MenuSnapshot): string {
     const firstName = user.name.split(' ')[0] || user.name;
-    const hours = todays.reduce((sum, t) => sum + t.hoursSpent, 0);
+    const dateLine = new Intl.DateTimeFormat('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Africa/Nairobi',
+    }).format(new Date());
 
-    const snapshot =
-      todays.length === 0
-        ? 'Nothing logged yet today.'
-        : `*Today*  ${gauge(hours / WORKDAY_HOURS)}  ${formatDuration(hours)} across ${plural(todays.length, 'task')}`;
-
-    return `${greeting()}, ${displayName(user, firstName)}\n\n${snapshot}`;
+    return (
+      `${greeting()}, ${displayName(user, firstName)}\n` +
+      `_${dateLine}_\n\n` +
+      `*Today*\n${gauge(s.todayHours / WORKDAY_HOURS)}  ${formatDuration(s.todayHours)} of ${WORKDAY_HOURS} h · ${plural(s.todayCount, 'task')}\n\n` +
+      `*This week*\n${gauge(s.weekHours / WORKWEEK_HOURS)}  ${formatDuration(s.weekHours)} of ${WORKWEEK_HOURS} h · ${plural(s.weekCount, 'task')}\n\n` +
+      dayNudge(s)
+    );
   }
 
   private async showMainMenu(to: string, user: User, lead?: string): Promise<void> {
     await this.sessions.reset(to);
-    await this.sendMenu(to, lead ? `${lead}\n\n${MAIN_MENU_TEXT}` : `${await this.menuIntro(user)}\n\n${MAIN_MENU_TEXT}`);
+    const snapshot = await this.menuSnapshot(user);
+    await this.sendMenu(to, snapshot, lead ? `${lead}\n\n${MAIN_MENU_TEXT}` : `${this.menuIntro(user, snapshot)}\n\n${MAIN_MENU_TEXT}`);
   }
 
   /** The main menu list, carrying `body` - or, if `body` is too long for a list, as a separate text first. */
-  private async sendMenu(to: string, body: string): Promise<void> {
+  private async sendMenu(to: string, snapshot: MenuSnapshot, body: string): Promise<void> {
     if (body.length > BODY_LIMIT) {
       await this.client.sendMessage(to, { type: 'text', text: body });
       body = MAIN_MENU_TEXT;
@@ -363,7 +392,7 @@ export class WhatsAppBotService {
       text: body,
       footer: MENU_FOOTER,
       buttonLabel: 'Open Menu',
-      sections: MAIN_MENU_SECTIONS,
+      sections: mainMenuSections(snapshot),
     });
   }
 
@@ -382,9 +411,9 @@ export class WhatsAppBotService {
     });
   }
 
-  private async showHelp(to: string): Promise<void> {
+  private async showHelp(to: string, user: User): Promise<void> {
     await this.sessions.reset(to);
-    await this.sendMenu(to, helpText(this.portalUrl));
+    await this.sendMenu(to, await this.menuSnapshot(user), helpText(this.portalUrl));
   }
 
   private async showProfile(to: string, user: User): Promise<void> {
@@ -497,6 +526,9 @@ export class WhatsAppBotService {
       case 'task_add':
         await this.startAddTask(to);
         return;
+      case 'task_repeat':
+        await this.startRepeatTask(to, user);
+        return;
       case 'task_update':
         await this.startUpdateTask(to, user);
         return;
@@ -504,7 +536,7 @@ export class WhatsAppBotService {
         await this.showProfile(to, user);
         return;
       case 'help':
-        await this.showHelp(to);
+        await this.showHelp(to, user);
         return;
       default:
         await this.showMainMenu(to, user);
@@ -727,16 +759,66 @@ export class WhatsAppBotService {
       return;
     }
     await this.sessions.advance(to, 'task_add_description', { organization });
+    await this.sendDescriptionPrompt(to, ADD_HEADER);
+  }
+
+  private async sendDescriptionPrompt(to: string, header: string, preface = ''): Promise<void> {
     await this.client.sendMessage(to, {
       type: 'buttons',
-      header: ADD_HEADER,
+      header,
       text:
+        preface +
         '*Describe what you worked on*\n\n' +
         'Type a sentence or two, as you would in your daily report.\n\n' +
         '_For example: Configured VLANs on the core switch at the Westlands branch._',
       footer: stepFooter(4, 'Description'),
       buttons: [{ id: 'main_menu', title: 'Cancel' }],
     });
+  }
+
+  /**
+   * "Repeat Last Task": copies the vertical, category and organization of the
+   * user's most recent task and jumps straight to the description, so a
+   * recurring kind of work takes a few taps instead of seven steps. The
+   * project is offered as "Same as Last" at the next step as usual.
+   */
+  private async startRepeatTask(to: string, user: User): Promise<void> {
+    const last = await this.app.prisma.workTask.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: { vertical: true, category: true, organization: true, customerProject: true },
+    });
+    if (!last) {
+      await this.startAddTask(to);
+      return;
+    }
+
+    await this.sessions.reset(to);
+    const vertical = last.vertical as TaskVertical;
+    const category = last.category as TaskCategory;
+
+    if (!last.organization) {
+      // Older tasks predate organizations - ask for it, then carry on as normal.
+      await this.sessions.advance(to, 'task_add_organization', { vertical, category });
+      await this.sendOrganizationPicker(to, user, {
+        header: 'Repeat Last Task',
+        text: `*${CATEGORY_LABELS[category]}* · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}\n\n*Which organization is this for?*`,
+        footer: stepFooter(3, 'Organization'),
+      });
+      return;
+    }
+
+    const organization = last.organization as Organization;
+    await this.sessions.advance(to, 'task_add_description', { vertical, category, organization });
+    await this.sendDescriptionPrompt(
+      to,
+      'Repeat Last Task',
+      '*Same setup as your last task*\n' +
+        `${CATEGORY_LABELS[category]} · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}\n` +
+        `${ORGANIZATION_LABELS[organization]}` +
+        (last.customerProject ? `\nProject: ${clip(last.customerProject, 80)}` : '') +
+        '\n\n'
+    );
   }
 
   private async stepAddDescription(to: string, user: User, input: string): Promise<void> {
