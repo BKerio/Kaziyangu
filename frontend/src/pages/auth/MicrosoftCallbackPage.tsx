@@ -43,9 +43,7 @@ function MicrosoftCallbackPage() {
         addNotification({ type: 'success', title: 'Signed in', message: `Welcome, ${firstName}.` });
 
         if (redirectPath) navigate(redirectPath, { replace: true });
-        else if (['SUPER_ADMIN', 'ADMIN'].includes(user.role)) navigate('/team-tasks', { replace: true });
-        else if (user.role === 'ATTACHEE') navigate('/my-attendance', { replace: true });
-        else navigate('/tasks', { replace: true });
+        else navigate(user.role === 'ATTACHEE' ? '/my-attendance' : '/dashboard', { replace: true });
       })
       .catch(() => {
         useAuthStore.getState().logout();

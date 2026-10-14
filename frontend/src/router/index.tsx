@@ -33,7 +33,7 @@ const Unauthorized = () => <div className="p-10 font-sans font-bold text-status-
 function HomeRedirect() {
   const role = useAuthStore((s) => s.user?.role);
   if (role === 'ATTACHEE') return <Navigate to="/my-attendance" replace />;
-  return <Navigate to="/tasks" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 export const router = createBrowserRouter([

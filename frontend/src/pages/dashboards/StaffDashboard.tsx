@@ -9,6 +9,7 @@ import api from '@/api/client';
 import { getMyProfile } from '@/api/account';
 import ActiveTeamText from '@/components/shared/ActiveTeamText';
 import ActiveMembersRing from '@/components/shared/ActiveMembersRing';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Department, PaginatedResponse, WorkTask } from '@/types/api';
 import { fmtDate } from '@/lib/datetime';
 
@@ -119,11 +120,14 @@ function StaffDashboard() {
   return (
     <div className="col" style={{ gap: 20 }}>
       {/* Hero */}
-      <div className="card card-pad" style={{ borderLeft: `4px solid ${theme.accent}` }}>
+      <div className="card card-pad">
         <div className="flex items-center justify-between" style={{ flexWrap: 'wrap', gap: 10 }}>
           <div>
             <p className="eyebrow">Dashboard</p>
-            <h2 className="text-2xl font-bold mt-1" style={{ color: 'var(--ink)' }}> Welcome back, {profile?.name?.split(' ').join(' ') ?? 'there'} </h2>
+            <h2 className="text-2xl font-bold mt-1" style={{ color: 'var(--ink)' }}>
+              Welcome back, {profile?.name ?? 'there'}
+              {profile && <VerifiedBadge size={22} />}
+            </h2>
 
             <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
               {profile?.role ? roleLabel(profile.role) : ''} · {theme.label}

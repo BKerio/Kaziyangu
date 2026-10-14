@@ -71,9 +71,8 @@ function LoginPage() {
       });
       const role = result.user.role;
 
-      if (['SUPER_ADMIN', 'ADMIN'].includes(role)) navigate('/team-tasks');
-      else if (role === 'ATTACHEE') navigate('/my-attendance');
-      else navigate('/tasks');
+      // The dashboard is staff/admin only, so attachees land on their attendance page instead.
+      navigate(role === 'ATTACHEE' ? '/my-attendance' : '/dashboard');
     } catch (error: any) {
       const msg = error?.response?.data?.message;
       setServerError(msg || 'Invalid credentials. Please try again.');
