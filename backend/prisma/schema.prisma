@@ -165,8 +165,8 @@ enum TaskStatus {
 }
 
 // Which of the group's legal entities a task is logged against. Optional -
-// historical rows predate this field, and it stays unset for tasks logged
-// through the WhatsApp bot for now (see modules/whatsapp/whatsapp-bot.service.ts).
+// historical rows predate this field. The WhatsApp bot asks for it as step 3
+// of "Log New Task" (see modules/whatsapp/whatsapp-bot.service.ts).
 enum Organization {
   MILLENIUM_SOLUTIONS
   BRESTONE_AFRICA

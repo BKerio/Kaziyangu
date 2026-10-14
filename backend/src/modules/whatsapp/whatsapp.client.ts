@@ -5,13 +5,37 @@ import type { ListRow, ListSection, ReplyButton } from './whatsapp.types.js';
 
 const GRAPH_API_VERSION = 'v20.0';
 
-type OutgoingMessage =
+/** Optional bold title line above, and small grey line below, an interactive message. */
+interface Chrome {
+  header?: string;
+  footer?: string;
+}
+
+export type OutgoingMessage =
   | { type: 'text'; text: string }
-  | { type: 'buttons'; text: string; buttons: ReplyButton[] }
+  | ({ type: 'buttons'; text: string; buttons: ReplyButton[] } & Chrome)
   // A flat list of rows (e.g. a picker) renders under one implicit section;
   // pass `sections` instead for a menu grouped under labeled headings.
-  | { type: 'list'; text: string; buttonLabel: string; rows: ListRow[] }
-  | { type: 'list'; text: string; buttonLabel: string; sections: ListSection[] };
+  | ({ type: 'list'; text: string; buttonLabel: string; rows: ListRow[] } & Chrome)
+  | ({ type: 'list'; text: string; buttonLabel: string; sections: ListSection[] } & Chrome);
+
+// Cloud API field limits - anything longer is rejected outright, so every
+// outgoing field is trimmed to fit rather than risking a silently lost reply.
+const LIMITS = {
+  text: 4096,
+  body: 1024,
+  header: 60,
+  footer: 60,
+  buttonTitle: 20,
+  listButton: 20,
+  sectionTitle: 24,
+  rowTitle: 24,
+  rowDescription: 72,
+};
+
+function fit(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
 
 /**
  * Thin wrapper over the Meta WhatsApp Cloud API. Failures are logged and
@@ -89,9 +113,16 @@ export class WhatsAppClient {
   }
 }
 
+function chrome(message: Chrome): Record<string, unknown> {
+  return {
+    ...(message.header ? { header: { type: 'text', text: fit(message.header, LIMITS.header) } } : {}),
+    ...(message.footer ? { footer: { text: fit(message.footer, LIMITS.footer) } } : {}),
+  };
+}
+
 function buildPayload(message: OutgoingMessage): Record<string, unknown> {
   if (message.type === 'text') {
-    return { type: 'text', text: { body: message.text } };
+    return { type: 'text', text: { body: fit(message.text, LIMITS.text) } };
   }
 
   if (message.type === 'buttons') {
@@ -99,11 +130,13 @@ function buildPayload(message: OutgoingMessage): Record<string, unknown> {
       type: 'interactive',
       interactive: {
         type: 'button',
-        body: { text: message.text },
+        ...chrome(message),
+        body: { text: fit(message.text, LIMITS.body) },
         action: {
-          buttons: message.buttons.map((button) => ({
+          // The API allows at most three reply buttons.
+          buttons: message.buttons.slice(0, 3).map((button) => ({
             type: 'reply',
-            reply: { id: button.id, title: button.title },
+            reply: { id: button.id, title: fit(button.title, LIMITS.buttonTitle) },
           })),
         },
       },
@@ -115,10 +148,18 @@ function buildPayload(message: OutgoingMessage): Record<string, unknown> {
     type: 'interactive',
     interactive: {
       type: 'list',
-      body: { text: message.text },
+      ...chrome(message),
+      body: { text: fit(message.text, LIMITS.body) },
       action: {
-        button: message.buttonLabel,
-        sections,
+        button: fit(message.buttonLabel, LIMITS.listButton),
+        sections: sections.map((section) => ({
+          title: fit(section.title, LIMITS.sectionTitle),
+          rows: section.rows.map((row) => ({
+            id: row.id,
+            title: fit(row.title, LIMITS.rowTitle),
+            ...(row.description ? { description: fit(row.description, LIMITS.rowDescription) } : {}),
+          })),
+        })),
       },
     },
   };

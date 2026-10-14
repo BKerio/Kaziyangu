@@ -7,6 +7,7 @@ import {
   User as UserIcon, Phone, Mail, Lock, Eye, EyeOff, KeyRound,
 } from 'lucide-react';
 import AppLoader from '@/components/shared/AppLoader';
+import VerifiedBadge, { isVerifiedStaff } from '@/components/shared/VerifiedBadge';
 import { getMyProfile, updateMyProfile, getErrorMessage } from '@/api/account';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -107,7 +108,10 @@ function ProfilePage() {
             {initials}
           </div>
           <div>
-            <p className="text-lg font-bold" style={{ color: 'var(--ink)' }}>{profile?.name}</p>
+            <p className="text-lg font-bold" style={{ color: 'var(--ink)' }}>
+              {profile?.name}
+              {profile && isVerifiedStaff(profile.role) && <VerifiedBadge size={18} />}
+            </p>
             <p className="text-sm mt-0.5" style={{ color: 'var(--muted)' }}>
               {profile?.role ? roleLabel(profile.role) : ''}
             </p>

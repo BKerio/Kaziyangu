@@ -4,9 +4,11 @@ export type FlowStep =
   | 'idle'
   | 'task_add_vertical'
   | 'task_add_category'
+  | 'task_add_organization'
   | 'task_add_description'
   | 'task_add_project'
   | 'task_add_status'
+  | 'task_add_percent'
   | 'task_add_hours'
   | 'task_add_attachment'
   | 'task_add_confirm'
@@ -14,6 +16,8 @@ export type FlowStep =
   | 'task_update_field'
   | 'task_update_status'
   | 'task_update_percent'
+  | 'task_update_hours'
+  | 'task_update_organization'
   | 'task_update_blockers';
 
 export interface Session {
@@ -69,6 +73,17 @@ export class BotSessionService {
       where: { phone },
       create: { phone, flow, data: existing.data, expiresAt: this.nextExpiry() },
       update: { flow, data: existing.data, expiresAt: this.nextExpiry() },
+    });
+  }
+
+  /** Moves to `flow` and merges `data` in one write - the usual shape of a wizard step. */
+  async advance(phone: string, flow: FlowStep, data: Record<string, string> = {}): Promise<void> {
+    const existing = await this.get(phone);
+    const merged = { ...existing.data, ...data };
+    await this.app.prisma.botSession.upsert({
+      where: { phone },
+      create: { phone, flow, data: merged, expiresAt: this.nextExpiry() },
+      update: { flow, data: merged, expiresAt: this.nextExpiry() },
     });
   }
 

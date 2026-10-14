@@ -4,6 +4,7 @@ import { WorkTask } from '@/types/api';
 import { statusPillClass } from '@/utils/taskStatus';
 import { CustomerGroupInfo } from '@/utils/customerSequence';
 import { fmtDate } from '@/lib/datetime';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
 interface TaskTableRowProps {
   task: WorkTask;
@@ -51,7 +52,8 @@ function TaskTableRow({
 
       <td style={{ ...cell, whiteSpace: 'nowrap', color: 'var(--muted)' }}>{fmtDate(t.date)}</td>
 
-      {showPerson && <td style={{ ...cell, fontWeight: 600 }}>{t.user.name}</td>}
+      {/* Only staff log work tasks, so every task owner is verified staff. */}
+      {showPerson && <td style={{ ...cell, fontWeight: 600 }}>{t.user.name}<VerifiedBadge size={14} /></td>}
 
       <td style={cell}>
         <div className="col" style={{ gap: 3 }}>

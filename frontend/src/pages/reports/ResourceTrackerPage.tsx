@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { TrendingUp as TrendUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '@/api/client';
 import { ResourceWeeklyReport } from '@/types/api';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
 function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -79,7 +80,7 @@ function ResourceTrackerPage() {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.userId} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '10px 14px', fontWeight: 600 }}>{r.name}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 600 }}>{r.name}<VerifiedBadge size={14} /></td>
                     {dayLabels.map((d) => (
                       <td key={d.key} style={{ padding: '10px 14px', textAlign: 'right' }}>{r.hoursByDay[d.key] || '-'}</td>
                     ))}

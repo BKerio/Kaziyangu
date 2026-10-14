@@ -1,7 +1,7 @@
 import { AppContext } from '../../context.js';
-import { Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
+import { Organization, Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
 import type { User } from '../../generated/prisma/index.js';
-import { CATEGORY_LABELS, STATUS_LABELS, VERTICAL_LABELS } from '../tasks/task-options.js';
+import { CATEGORY_LABELS, ORGANIZATION_LABELS, STATUS_LABELS, VERTICAL_LABELS } from '../tasks/task-options.js';
 import { MAX_ATTACHMENTS_PER_TASK } from '../tasks/attachment-constants.js';
 import { TaskService } from '../tasks/task.service.js';
 import { TaskAttachmentService } from '../tasks/task-attachment.service.js';
@@ -10,17 +10,38 @@ import { WhatsAppClient } from './whatsapp.client.js';
 import { findUserByPhone } from './user-lookup.js';
 import { formatTaskSummary } from './task-format.js';
 import {
+  ASSISTANT_NAME,
   BACK_BUTTON,
   MAIN_MENU_ROWS,
   MAIN_MENU_SECTIONS,
   MAIN_MENU_TEXT,
+  MENU_FOOTER,
   MENU_TRIGGERS,
-  UPDATE_FIELD_BUTTONS,
-  YES_NO_BUTTONS,
+  REVIEW_BUTTONS,
   helpText,
   unregisteredText,
 } from './menus.js';
-import type { ImageMessage, IncomingMessage, ListRow, WebhookPayload } from './whatsapp.types.js';
+import {
+  HOURS_CUSTOM_ID,
+  PERCENT_CUSTOM_ID,
+  WORKDAY_HOURS,
+  categoryRow,
+  clip,
+  formatDuration,
+  gauge,
+  greeting,
+  hourSliderRows,
+  organizationRow,
+  pagedSections,
+  parseHours,
+  parsePercent,
+  percentSliderRows,
+  statusNeedsProgress,
+  statusRow,
+  stepFooter,
+  verticalRow,
+} from './ui.js';
+import type { ImageMessage, IncomingMessage, ListSection, ReplyButton, WebhookPayload } from './whatsapp.types.js';
 
 /** Best-effort file extension for a screenshot downloaded from WhatsApp, from its MIME type. */
 function extFromMime(mimeType: string): string {
@@ -45,15 +66,23 @@ function attachmentsFromSession(data: Record<string, string>): PendingAttachment
   }
 }
 
-const LIST_PAGE_SIZE = 9; // WhatsApp lists cap at 10 rows/section; 1 slot reserved for pagination
-
 const VERTICAL_VALUES = Object.values(TaskVertical);
 const CATEGORY_VALUES = Object.values(TaskCategory);
 const STATUS_VALUES = Object.values(TaskStatus);
+const ORGANIZATION_VALUES = Object.values(Organization);
+
+const ADD_HEADER = 'Log New Task';
+const UPDATE_HEADER = 'Update Task';
+
+// Text messages max out at 4096 characters; leave headroom when splitting long task lists.
+const CHUNK_LIMIT = 3500;
+// Interactive message bodies max out at 1024 characters.
+const BODY_LIMIT = 1024;
 
 interface Draft {
   vertical?: TaskVertical;
   category?: TaskCategory;
+  organization?: Organization;
   description?: string;
   customerProject?: string;
   status: TaskStatus;
@@ -70,8 +99,22 @@ function extractInput(message: IncomingMessage): string {
   return '';
 }
 
+// WhatsApp text can't carry a custom icon, so a verified staff member's name
+// gets the one emoji the assistant uses - the closest match to the blue
+// badge shown next to staff names in the web portal.
+const VERIFIED_MARK = '☑️';
+
+/** "*Brian Kerio* ☑️" for active staff; attachees get the plain bold name. */
+function displayName(user: Pick<User, 'name' | 'role' | 'isActive'>, name = user.name): string {
+  return user.isActive && user.role !== Role.ATTACHEE ? `*${name}* ${VERIFIED_MARK}` : `*${name}*`;
+}
+
 function taskWord(count: number): string {
   return count === 1 ? 'task' : 'tasks';
+}
+
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
 /** Indents every line of a (possibly multi-line) block, for nesting under a day header. */
@@ -83,42 +126,15 @@ function indent(text: string, spaces = 2): string {
     .join('\n');
 }
 
-function shortTitle(label: string, max = 24): string {
-  const stripped = label.replace(/^\d+\.\s*/, '');
-  return stripped.length <= max ? stripped : `${stripped.slice(0, max - 1)}…`;
-}
-
 function resolveFromId<T extends string>(id: string, prefix: string, values: readonly T[]): T | null {
   if (!id.startsWith(`${prefix}_`)) return null;
   const candidate = id.slice(prefix.length + 1) as T;
   return values.includes(candidate) ? candidate : null;
 }
 
-function paginatedRows<T extends string>(
-  values: readonly T[],
-  labels: Record<T, string>,
-  page: number,
-  prefix: string
-): ListRow[] {
-  const start = page * LIST_PAGE_SIZE;
-  const slice = values.slice(start, start + LIST_PAGE_SIZE);
-  const rows: ListRow[] = slice.map((value) => ({
-    id: `${prefix}_${value}`,
-    title: shortTitle(labels[value]),
-    description: labels[value].slice(0, 72),
-  }));
-
-  if (start + LIST_PAGE_SIZE < values.length) {
-    rows.push({ id: `${prefix}_next`, title: 'More options', description: 'Next page' });
-  }
-  if (page > 0) {
-    rows.push({ id: `${prefix}_prev`, title: 'Previous page', description: 'Go back' });
-  }
-  return rows;
-}
-
+/** Progress implied by a status that doesn't need asking about. */
 function defaultPercentForStatus(status: TaskStatus): number {
-  if (status === TaskStatus.COMPLETED_CLOSED) return 100;
+  if (status === TaskStatus.COMPLETED_CLOSED || status === TaskStatus.RESOLVED) return 100;
   if (status === TaskStatus.IN_PROGRESS) return 50;
   return 0;
 }
@@ -127,6 +143,7 @@ function draftFromSession(data: Record<string, string>): Draft {
   return {
     vertical: (data.vertical as TaskVertical) || undefined,
     category: (data.category as TaskCategory) || undefined,
+    organization: (data.organization as Organization) || undefined,
     description: data.description || undefined,
     customerProject: data.customerProject || undefined,
     status: (data.status as TaskStatus) || TaskStatus.NOT_STARTED,
@@ -151,12 +168,32 @@ function weekRangeStrings(): { from: string; to: string } {
   return { from: monday.toISOString().slice(0, 10), to: sunday.toISOString().slice(0, 10) };
 }
 
+/** Splits blocks of text into messages that each stay under the text-message size limit. */
+function chunkBlocks(header: string, blocks: string[]): string[] {
+  const chunks: string[] = [];
+  let current = header;
+  for (const block of blocks) {
+    if (current.length + block.length > CHUNK_LIMIT) {
+      chunks.push(current.trim());
+      current = block;
+    } else {
+      current += block;
+    }
+  }
+  chunks.push(current.trim());
+  return chunks;
+}
+
 const MENU_ACTION_IDS = new Set([...MAIN_MENU_ROWS.map((r) => r.id), 'main_menu', 'task_add', 'task_update']);
 
 /**
  * Routes inbound WhatsApp messages to the daily-task wizard, backed by the
  * same TaskService used by the HTTP API - so every WhatsApp-created/updated
  * task gets identical validation, ownership checks, and socket broadcasts.
+ *
+ * Every reply the bot sends is billed by Meta, so related content is merged
+ * into one interactive message wherever it fits (e.g. "Task saved" rides on
+ * the main menu rather than arriving as a separate text).
  */
 export class WhatsAppBotService {
   private readonly tasks: TaskService;
@@ -194,19 +231,22 @@ export class WhatsAppBotService {
   // ── Routing ──────────────────────────────────────────────────────────────
 
   private async handleMessage(to: string, message: IncomingMessage): Promise<void> {
+    const user = await findUserByPhone(this.app.prisma, to);
+    if (!user) {
+      await this.client.sendMessage(to, { type: 'text', text: unregisteredText(this.portalUrl) });
+      return;
+    }
+
     if (message.type === 'image') {
-      const user = await findUserByPhone(this.app.prisma, to);
-      if (!user) {
-        await this.client.sendMessage(to, { type: 'text', text: unregisteredText(this.portalUrl) });
-        return;
-      }
       const session = await this.sessions.get(to);
       if (session.flow === 'task_add_attachment') {
         await this.stepAddAttachmentImage(to, message);
       } else {
         await this.client.sendMessage(to, {
-          type: 'text',
-          text: "I wasn't expecting a photo right now. When logging a task you'll be asked for a screenshot - type *menu* to get started.",
+          type: 'buttons',
+          header: ASSISTANT_NAME,
+          text: 'Screenshots are added while logging a task, just before you review it.\n\nStart with *Log New Task* and you will be asked for them at the right moment.',
+          buttons: [{ id: 'task_add', title: 'Log New Task' }, BACK_BUTTON],
         });
       }
       return;
@@ -216,18 +256,12 @@ export class WhatsAppBotService {
     if (!input) {
       await this.client.sendMessage(to, {
         type: 'text',
-        text: 'I can only respond to text messages, photos, and menu selections for now.',
+        text: 'The Task Assistant understands text, photos and menu selections. Type *menu* to see your options.',
       });
       return;
     }
 
     const normalized = input.toLowerCase().trim();
-    const user = await findUserByPhone(this.app.prisma, to);
-
-    if (!user) {
-      await this.client.sendMessage(to, { type: 'text', text: unregisteredText(this.portalUrl) });
-      return;
-    }
 
     if (MENU_TRIGGERS.has(normalized)) {
       if (normalized === 'help') await this.showHelp(to);
@@ -247,13 +281,6 @@ export class WhatsAppBotService {
       return;
     }
 
-    await this.client.sendMessage(to, {
-      type: 'text',
-      text:
-        `Hello, *${user.name}*.\n\n` +
-        '*Task Assistant* helps you log and manage your daily tasks from WhatsApp.\n\n' +
-        'Type *menu* to get started.',
-    });
     await this.showMainMenu(to, user);
   }
 
@@ -263,39 +290,84 @@ export class WhatsAppBotService {
 
   // ── Menu screens ─────────────────────────────────────────────────────────
 
-  private async showMainMenu(to: string, user: User): Promise<void> {
+  /** Greeting plus a one-line snapshot of what's been logged today. */
+  private async menuIntro(user: User): Promise<string> {
+    const today = todayDateString();
+    const { data: todays } = await this.tasks.getTasks(this.actorFor(user), {
+      userId: user.id,
+      from: today,
+      to: today,
+      page: 1,
+      limit: 50,
+    });
+    const firstName = user.name.split(' ')[0] || user.name;
+    const hours = todays.reduce((sum, t) => sum + t.hoursSpent, 0);
+
+    const snapshot =
+      todays.length === 0
+        ? 'Nothing logged yet today.'
+        : `*Today*  ${gauge(hours / WORKDAY_HOURS)}  ${formatDuration(hours)} across ${plural(todays.length, 'task')}`;
+
+    return `${greeting()}, ${displayName(user, firstName)}\n\n${snapshot}`;
+  }
+
+  private async showMainMenu(to: string, user: User, lead?: string): Promise<void> {
     await this.sessions.reset(to);
+    await this.sendMenu(to, lead ? `${lead}\n\n${MAIN_MENU_TEXT}` : `${await this.menuIntro(user)}\n\n${MAIN_MENU_TEXT}`);
+  }
+
+  /** The main menu list, carrying `body` - or, if `body` is too long for a list, as a separate text first. */
+  private async sendMenu(to: string, body: string): Promise<void> {
+    if (body.length > BODY_LIMIT) {
+      await this.client.sendMessage(to, { type: 'text', text: body });
+      body = MAIN_MENU_TEXT;
+    }
     await this.client.sendMessage(to, {
       type: 'list',
-      text: `Welcome back, *${user.name}*.\n\n${MAIN_MENU_TEXT}`,
+      header: ASSISTANT_NAME,
+      text: body,
+      footer: MENU_FOOTER,
       buttonLabel: 'Open Menu',
       sections: MAIN_MENU_SECTIONS,
     });
   }
 
-  private async showHelp(to: string): Promise<void> {
-    await this.client.sendMessage(to, { type: 'text', text: helpText(this.portalUrl) });
+  /** Sends text chunks, folding the last one into a buttons message when it fits. */
+  private async sendChunksWithButtons(to: string, chunks: string[], buttons: ReplyButton[], footer?: string): Promise<void> {
+    const last = chunks[chunks.length - 1] ?? '';
+    const leading = last.length <= BODY_LIMIT ? chunks.slice(0, -1) : chunks;
+    for (const text of leading) {
+      await this.client.sendMessage(to, { type: 'text', text });
+    }
     await this.client.sendMessage(to, {
-      type: 'list',
-      text: 'Need anything else?',
-      buttonLabel: 'Open Menu',
-      sections: MAIN_MENU_SECTIONS,
+      type: 'buttons',
+      text: last.length <= BODY_LIMIT ? last : 'What next?',
+      footer,
+      buttons,
     });
+  }
+
+  private async showHelp(to: string): Promise<void> {
+    await this.sessions.reset(to);
+    await this.sendMenu(to, helpText(this.portalUrl));
   }
 
   private async showProfile(to: string, user: User): Promise<void> {
     await this.sessions.reset(to);
     await this.client.sendMessage(to, {
-      type: 'text',
+      type: 'buttons',
+      header: 'My Profile',
       text:
-        `*Your Profile*\n\n` +
-        `Name: *${user.name}*\n` +
-        `Phone: *${user.phone}*\n` +
-        `Department: ${user.department ?? 'Not set'}\n` +
-        `Role: ${user.role}\n` +
-        (user.email ? `Email: ${user.email}\n` : ''),
+        `${displayName(user)}\n` +
+        `${user.role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}` +
+        (user.department ? ` · ${user.department.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}` : '') +
+        '\n\n' +
+        `Phone: ${user.phone}\n` +
+        (user.email ? `Email: ${user.email}\n` : '') +
+        `\nTo change these details, sign in at ${this.portalUrl}`,
+      footer: MENU_FOOTER,
+      buttons: [BACK_BUTTON],
     });
-    await this.client.sendMessage(to, { type: 'buttons', text: 'Back to task menu?', buttons: [BACK_BUTTON] });
   }
 
   private async showTodayTasks(to: string, user: User): Promise<void> {
@@ -309,38 +381,28 @@ export class WhatsAppBotService {
       limit: 50,
     });
 
+    const buttons: ReplyButton[] = [{ id: 'task_add', title: 'Log New Task' }, { id: 'task_update', title: 'Update Task' }, BACK_BUTTON];
+
     if (taskList.length === 0) {
       await this.client.sendMessage(to, {
-        type: 'text',
-        text: `*Today's Tasks* (${today})\n\nNo tasks logged yet today.\n\nSelect *Log New Task* from the menu to add one.`,
+        type: 'buttons',
+        header: "Today's Tasks",
+        text: `Nothing logged yet for ${today}.\n\nTap *Log New Task* to record your first one.`,
+        buttons: [{ id: 'task_add', title: 'Log New Task' }, BACK_BUTTON],
       });
-    } else {
-      const totalHours = taskList.reduce((sum, t) => sum + t.hoursSpent, 0);
-      const header = `*Today's Tasks* (${today})\n${taskList.length} ${taskWord(taskList.length)} logged, ${totalHours.toFixed(1)}h total\n\n`;
-
-      const chunks: string[] = [];
-      let current = header;
-      taskList.forEach((task, index) => {
-        const block = `${formatTaskSummary(task, index + 1)}\n\n`;
-        if (current.length + block.length > 3500) {
-          chunks.push(current.trim());
-          current = block;
-        } else {
-          current += block;
-        }
-      });
-      chunks.push(current.trim());
-
-      for (const text of chunks) {
-        await this.client.sendMessage(to, { type: 'text', text });
-      }
+      return;
     }
 
-    await this.client.sendMessage(to, {
-      type: 'buttons',
-      text: 'What next?',
-      buttons: [{ id: 'task_add', title: 'Log New Task' }, { id: 'task_update', title: 'Update Task' }, BACK_BUTTON],
-    });
+    const totalHours = taskList.reduce((sum, t) => sum + t.hoursSpent, 0);
+    const header =
+      `*Today's Tasks*  ·  ${today}\n` +
+      `${gauge(totalHours / WORKDAY_HOURS)}  ${formatDuration(totalHours)} across ${taskList.length} ${taskWord(taskList.length)}\n\n`;
+
+    const chunks = chunkBlocks(
+      header,
+      taskList.map((task, index) => `${formatTaskSummary(task, index + 1)}\n\n`)
+    );
+    await this.sendChunksWithButtons(to, chunks, buttons);
   }
 
   private async showWeekTasks(to: string, user: User): Promise<void> {
@@ -356,121 +418,514 @@ export class WhatsAppBotService {
 
     if (taskList.length === 0) {
       await this.client.sendMessage(to, {
-        type: 'text',
-        text: `*This Week* (${from} to ${rangeTo})\n\nNo tasks logged this week yet.`,
+        type: 'buttons',
+        header: 'This Week',
+        text: `Nothing logged between ${from} and ${rangeTo} yet.`,
+        buttons: [{ id: 'task_add', title: 'Log New Task' }, BACK_BUTTON],
       });
-    } else {
-      const byDate = new Map<string, typeof taskList>();
-      for (const task of taskList) {
-        const key = task.date.toISOString().slice(0, 10);
-        const list = byDate.get(key) ?? [];
-        list.push(task);
-        byDate.set(key, list);
-      }
-
-      const totalHours = taskList.reduce((sum, t) => sum + t.hoursSpent, 0);
-      const header =
-        `*This Week* (${from} to ${rangeTo})\n` +
-        `${taskList.length} ${taskWord(taskList.length)} logged, ${totalHours.toFixed(1)}h total\n\n`;
-
-      const chunks: string[] = [];
-      let current = header;
-
-      for (const [date, dayTasks] of [...byDate.entries()].sort()) {
-        const dayHours = dayTasks.reduce((sum, t) => sum + t.hoursSpent, 0);
-        let block = `*${date}* (${dayTasks.length} ${taskWord(dayTasks.length)}, ${dayHours.toFixed(1)}h)\n`;
-        dayTasks.forEach((task, i) => {
-          block += `${indent(formatTaskSummary(task, i + 1))}\n`;
-        });
-        block += '\n';
-
-        if (current.length + block.length > 3500) {
-          chunks.push(current.trim());
-          current = block;
-        } else {
-          current += block;
-        }
-      }
-      chunks.push(current.trim());
-
-      for (const text of chunks) {
-        await this.client.sendMessage(to, { type: 'text', text });
-      }
+      return;
     }
 
-    await this.client.sendMessage(to, { type: 'buttons', text: 'What next?', buttons: [BACK_BUTTON] });
-  }
+    const byDate = new Map<string, typeof taskList>();
+    for (const task of taskList) {
+      const key = task.date.toISOString().slice(0, 10);
+      const list = byDate.get(key) ?? [];
+      list.push(task);
+      byDate.set(key, list);
+    }
 
-  private async startAddTask(to: string): Promise<void> {
-    await this.sessions.reset(to);
-    await this.sessions.setFlow(to, 'task_add_vertical');
-    await this.sessions.setData(to, 'verticalPage', '0');
-    await this.client.sendMessage(to, {
-      type: 'list',
-      text: '*Log New Task*\n\nStep 1 of 5: Select the *task vertical*.',
-      buttonLabel: 'Select Vertical',
-      rows: paginatedRows(VERTICAL_VALUES, VERTICAL_LABELS, 0, 'vert'),
-    });
-  }
+    const totalHours = taskList.reduce((sum, t) => sum + t.hoursSpent, 0);
+    const header =
+      `*This Week*  ·  ${from} to ${rangeTo}\n` +
+      `${formatDuration(totalHours)} across ${taskList.length} ${taskWord(taskList.length)}\n\n`;
 
-  private async startUpdateTask(to: string, user: User): Promise<void> {
-    const today = todayDateString();
-    const { data: taskList } = await this.tasks.getTasks(this.actorFor(user), {
-      userId: user.id,
-      from: today,
-      to: today,
-      page: 1,
-      limit: 10,
-    });
-
-    if (taskList.length === 0) {
-      await this.client.sendMessage(to, {
-        type: 'text',
-        text: 'You have no tasks logged today to update.\n\nUse *Log New Task* first.',
+    const blocks = [...byDate.entries()].sort().map(([date, dayTasks]) => {
+      const dayHours = dayTasks.reduce((sum, t) => sum + t.hoursSpent, 0);
+      let block = `*${date}*\n${gauge(dayHours / WORKDAY_HOURS)}  ${formatDuration(dayHours)} · ${dayTasks.length} ${taskWord(dayTasks.length)}\n\n`;
+      dayTasks.forEach((task, i) => {
+        block += `${indent(formatTaskSummary(task, i + 1))}\n\n`;
       });
+      return block;
+    });
+
+    await this.sendChunksWithButtons(to, chunkBlocks(header, blocks), [BACK_BUTTON]);
+  }
+
+  private async handleMenuAction(to: string, user: User, actionId: string): Promise<void> {
+    switch (actionId) {
+      case 'tasks_today':
+        await this.showTodayTasks(to, user);
+        return;
+      case 'tasks_week':
+        await this.showWeekTasks(to, user);
+        return;
+      case 'task_add':
+        await this.startAddTask(to);
+        return;
+      case 'task_update':
+        await this.startUpdateTask(to, user);
+        return;
+      case 'my_profile':
+        await this.showProfile(to, user);
+        return;
+      case 'help':
+        await this.showHelp(to);
+        return;
+      default:
+        await this.showMainMenu(to, user);
+    }
+  }
+
+  // ── Multi-step flows ─────────────────────────────────────────────────────
+
+  private async handleActiveFlow(
+    to: string,
+    user: User,
+    input: string,
+    normalized: string,
+    session: Session
+  ): Promise<void> {
+    if (normalized === 'back' || normalized === 'cancel' || normalized === 'main_menu') {
       await this.showMainMenu(to, user);
       return;
     }
 
+    switch (session.flow) {
+      case 'task_add_vertical':
+        await this.stepAddVertical(to, input, session);
+        return;
+      case 'task_add_category':
+        await this.stepAddCategory(to, user, input, session);
+        return;
+      case 'task_add_organization':
+        await this.stepAddOrganization(to, user, input);
+        return;
+      case 'task_add_description':
+        await this.stepAddDescription(to, user, input);
+        return;
+      case 'task_add_project':
+        await this.stepAddProject(to, input, normalized, session);
+        return;
+      case 'task_add_status':
+        await this.stepAddStatus(to, input);
+        return;
+      case 'task_add_percent':
+        await this.stepAddPercent(to, input);
+        return;
+      case 'task_add_hours':
+        await this.stepAddHours(to, input, normalized);
+        return;
+      case 'task_add_attachment':
+        await this.stepAddAttachment(to, normalized, session);
+        return;
+      case 'task_add_confirm':
+        await this.stepAddConfirm(to, user, normalized, session);
+        return;
+      case 'task_update_pick':
+        await this.stepUpdatePick(to, user, input);
+        return;
+      case 'task_update_field':
+        await this.stepUpdateField(to, user, input, session);
+        return;
+      case 'task_update_status':
+        await this.stepUpdateStatus(to, user, input, session);
+        return;
+      case 'task_update_percent':
+        await this.stepUpdatePercent(to, user, input, session);
+        return;
+      case 'task_update_hours':
+        await this.stepUpdateHours(to, user, input, session);
+        return;
+      case 'task_update_organization':
+        await this.stepUpdateOrganization(to, user, input, session);
+        return;
+      case 'task_update_blockers':
+        await this.stepUpdateBlockers(to, user, input, normalized, session);
+        return;
+      default:
+        await this.showMainMenu(to, user);
+    }
+  }
+
+  // ── Log New Task ─────────────────────────────────────────────────────────
+
+  private async startAddTask(to: string): Promise<void> {
     await this.sessions.reset(to);
-    await this.sessions.setFlow(to, 'task_update_pick');
+    await this.sessions.advance(to, 'task_add_vertical', { verticalPage: '0' });
+    await this.sendVerticalPicker(to, 0);
+  }
+
+  private async sendVerticalPicker(to: string, page: number): Promise<void> {
     await this.client.sendMessage(to, {
       type: 'list',
-      text: '*Update Task*\n\nSelect a task from today.',
-      buttonLabel: 'Select Task',
-      rows: [
-        ...taskList.map((task, index) => ({
-          id: `task_${task.id}`,
-          title: shortTitle(`${index + 1}. ${CATEGORY_LABELS[task.category]}`, 24),
-          description: `${STATUS_LABELS[task.status]} · ${VERTICAL_LABELS[task.vertical].replace(/^\d+\.\s*/, '').slice(0, 40)}`,
-        })),
-        { id: 'main_menu', title: 'Main Menu', description: 'Cancel' },
-      ],
+      header: ADD_HEADER,
+      text: '*Which area of the business was this?*\n\nChoose the vertical this task belongs to.',
+      footer: stepFooter(1, 'Vertical'),
+      buttonLabel: 'Choose Vertical',
+      sections: pagedSections(VERTICAL_VALUES, page, 'vert', 'Verticals', verticalRow),
+    });
+  }
+
+  private async sendCategoryPicker(to: string, vertical: TaskVertical, page: number): Promise<void> {
+    await this.client.sendMessage(to, {
+      type: 'list',
+      header: ADD_HEADER,
+      text: `*What kind of work was it?*\n\nVertical: ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}`,
+      footer: stepFooter(2, 'Category'),
+      buttonLabel: 'Choose Category',
+      sections: pagedSections(CATEGORY_VALUES, page, 'cat', 'Categories', categoryRow),
+    });
+  }
+
+  /** The user's most recent organization comes first, so the usual choice is always the top row. */
+  private async sendOrganizationPicker(
+    to: string,
+    user: User,
+    opts: { header: string; text: string; footer: string }
+  ): Promise<void> {
+    const recent = await this.app.prisma.workTask.findFirst({
+      where: { userId: user.id, organization: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      select: { organization: true },
+    });
+    const recentOrg = recent?.organization as Organization | null | undefined;
+
+    const sections: ListSection[] = recentOrg
+      ? [
+          { title: 'Most recent', rows: [organizationRow(recentOrg, `${ORGANIZATION_LABELS[recentOrg]} · used last time`)] },
+          { title: 'All organizations', rows: ORGANIZATION_VALUES.filter((o) => o !== recentOrg).map((o) => organizationRow(o)) },
+        ]
+      : [{ title: 'Organizations', rows: ORGANIZATION_VALUES.map((o) => organizationRow(o)) }];
+
+    await this.client.sendMessage(to, {
+      type: 'list',
+      header: opts.header,
+      text: opts.text,
+      footer: opts.footer,
+      buttonLabel: 'Choose Organization',
+      sections,
+    });
+  }
+
+  private async sendStatusPicker(to: string, opts: { header: string; text: string; footer?: string }): Promise<void> {
+    await this.client.sendMessage(to, {
+      type: 'list',
+      header: opts.header,
+      text: opts.text,
+      footer: opts.footer,
+      buttonLabel: 'Choose Status',
+      sections: [{ title: 'Status', rows: STATUS_VALUES.map(statusRow) }],
+    });
+  }
+
+  private async sendPercentSlider(to: string, opts: { header: string; text: string; footer?: string }): Promise<void> {
+    await this.client.sendMessage(to, {
+      type: 'list',
+      header: opts.header,
+      text: opts.text,
+      footer: opts.footer,
+      buttonLabel: 'Set Progress',
+      sections: [{ title: 'Progress', rows: percentSliderRows() }],
+    });
+  }
+
+  private async sendHoursSlider(to: string, opts: { header: string; text: string; footer?: string }): Promise<void> {
+    await this.client.sendMessage(to, {
+      type: 'list',
+      header: opts.header,
+      text: opts.text,
+      footer: opts.footer,
+      buttonLabel: 'Set Time',
+      sections: [{ title: 'Time spent', rows: hourSliderRows() }],
+    });
+  }
+
+  private async stepAddVertical(to: string, input: string, session: Session): Promise<void> {
+    const page = Number(session.data.verticalPage ?? '0');
+    if (input === 'vert_next' || input === 'vert_prev') {
+      const nextPage = input === 'vert_next' ? page + 1 : Math.max(0, page - 1);
+      await this.sessions.setData(to, 'verticalPage', String(nextPage));
+      await this.sendVerticalPicker(to, nextPage);
+      return;
+    }
+
+    const vertical = resolveFromId(input, 'vert', VERTICAL_VALUES);
+    if (!vertical) {
+      await this.sendVerticalPicker(to, page);
+      return;
+    }
+    await this.sessions.advance(to, 'task_add_category', { vertical, categoryPage: '0' });
+    await this.sendCategoryPicker(to, vertical, 0);
+  }
+
+  private async stepAddCategory(to: string, user: User, input: string, session: Session): Promise<void> {
+    const page = Number(session.data.categoryPage ?? '0');
+    const vertical = session.data.vertical as TaskVertical;
+    if (input === 'cat_next' || input === 'cat_prev') {
+      const nextPage = input === 'cat_next' ? page + 1 : Math.max(0, page - 1);
+      await this.sessions.setData(to, 'categoryPage', String(nextPage));
+      await this.sendCategoryPicker(to, vertical, nextPage);
+      return;
+    }
+
+    const category = resolveFromId(input, 'cat', CATEGORY_VALUES);
+    if (!category) {
+      await this.sendCategoryPicker(to, vertical, page);
+      return;
+    }
+    await this.sessions.advance(to, 'task_add_organization', { category });
+    await this.sendOrganizationPicker(to, user, {
+      header: ADD_HEADER,
+      text: `*Which organization is this for?*\n\n${CATEGORY_LABELS[category]} · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}`,
+      footer: stepFooter(3, 'Organization'),
+    });
+  }
+
+  private async stepAddOrganization(to: string, user: User, input: string): Promise<void> {
+    const organization = resolveFromId(input, 'org', ORGANIZATION_VALUES);
+    if (!organization) {
+      await this.sendOrganizationPicker(to, user, {
+        header: ADD_HEADER,
+        text: '*Which organization is this for?*\n\nChoose one from the list.',
+        footer: stepFooter(3, 'Organization'),
+      });
+      return;
+    }
+    await this.sessions.advance(to, 'task_add_description', { organization });
+    await this.client.sendMessage(to, {
+      type: 'buttons',
+      header: ADD_HEADER,
+      text:
+        '*Describe what you worked on*\n\n' +
+        'Type a sentence or two, as you would in your daily report.\n\n' +
+        '_For example: Configured VLANs on the core switch at the Westlands branch._',
+      footer: stepFooter(4, 'Description'),
+      buttons: [{ id: 'main_menu', title: 'Cancel' }],
+    });
+  }
+
+  private async stepAddDescription(to: string, user: User, input: string): Promise<void> {
+    if (input.length < 5) {
+      await this.client.sendMessage(to, {
+        type: 'buttons',
+        header: ADD_HEADER,
+        text: 'A little more detail, please. The description needs at least 5 characters.',
+        footer: stepFooter(4, 'Description'),
+        buttons: [{ id: 'main_menu', title: 'Cancel' }],
+      });
+      return;
+    }
+
+    const recent = await this.app.prisma.workTask.findFirst({
+      where: { userId: user.id, customerProject: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      select: { customerProject: true },
+    });
+    const lastProject = recent?.customerProject?.trim() || '';
+
+    await this.sessions.advance(to, 'task_add_project', { description: input, lastProject });
+    await this.sendProjectPrompt(to, lastProject);
+  }
+
+  private async sendProjectPrompt(to: string, lastProject: string): Promise<void> {
+    const buttons: ReplyButton[] = [];
+    if (lastProject) buttons.push({ id: 'proj_last', title: 'Same as Last' });
+    buttons.push({ id: 'proj_skip', title: 'Skip' });
+
+    await this.client.sendMessage(to, {
+      type: 'buttons',
+      header: ADD_HEADER,
+      text:
+        '*Customer or project*\n\nType the customer or project name.' +
+        (lastProject ? `\n\nLast used: *${clip(lastProject, 120)}*` : ''),
+      footer: stepFooter(5, 'Customer / Project'),
+      buttons,
+    });
+  }
+
+  private async stepAddProject(to: string, input: string, normalized: string, session: Session): Promise<void> {
+    let customerProject = '';
+    if (input === 'proj_last') customerProject = session.data.lastProject ?? '';
+    else if (input !== 'proj_skip' && normalized !== 'skip') customerProject = input;
+
+    await this.sessions.advance(to, 'task_add_status', { customerProject });
+    await this.sendStatusPicker(to, {
+      header: ADD_HEADER,
+      text: '*Where does it stand?*\n\nChoose the current status.',
+      footer: stepFooter(6, 'Status'),
+    });
+  }
+
+  private async stepAddStatus(to: string, input: string): Promise<void> {
+    const status = resolveFromId(input, 'status', STATUS_VALUES);
+    if (!status) {
+      await this.sendStatusPicker(to, {
+        header: ADD_HEADER,
+        text: '*Where does it stand?*\n\nChoose the current status from the list.',
+        footer: stepFooter(6, 'Status'),
+      });
+      return;
+    }
+
+    if (statusNeedsProgress(status)) {
+      await this.sessions.advance(to, 'task_add_percent', { status });
+      await this.sendPercentSlider(to, {
+        header: ADD_HEADER,
+        text: `*How far along is it?*\n\nStatus: ${STATUS_LABELS[status]}\n\nSlide to the closest mark, or choose *Exact value*.`,
+        footer: stepFooter(6, 'Progress'),
+      });
+      return;
+    }
+
+    await this.sessions.advance(to, 'task_add_hours', { status, percentComplete: String(defaultPercentForStatus(status)) });
+    await this.sendAddHoursSlider(to);
+  }
+
+  private async stepAddPercent(to: string, input: string): Promise<void> {
+    if (input === PERCENT_CUSTOM_ID) {
+      await this.client.sendMessage(to, { type: 'text', text: 'Type the progress as a number from 0 to 100, for example *65*.' });
+      return;
+    }
+    const pct = parsePercent(input);
+    if (pct == null) {
+      await this.sendPercentSlider(to, {
+        header: ADD_HEADER,
+        text: 'That was not a percentage between 0 and 100. Choose a mark, or type a number such as *65*.',
+        footer: stepFooter(6, 'Progress'),
+      });
+      return;
+    }
+    await this.sessions.advance(to, 'task_add_hours', { percentComplete: String(pct) });
+    await this.sendAddHoursSlider(to);
+  }
+
+  private async sendAddHoursSlider(to: string): Promise<void> {
+    await this.sendHoursSlider(to, {
+      header: ADD_HEADER,
+      text:
+        '*How much time did it take?*\n\n' +
+        `Each bar is measured against an ${WORKDAY_HOURS}-hour day. Choose the closest mark, or *Exact time* to type it.`,
+      footer: stepFooter(7, 'Time spent'),
+    });
+  }
+
+  private async stepAddHours(to: string, input: string, normalized: string): Promise<void> {
+    if (input === HOURS_CUSTOM_ID) {
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: 'Type the time spent, for example *2.5*, *2h 15m*, *45m* or *1:30*.',
+      });
+      return;
+    }
+
+    const hours = normalized === 'skip' ? null : parseHours(input);
+    if (normalized !== 'skip' && hours == null) {
+      await this.sendHoursSlider(to, {
+        header: ADD_HEADER,
+        text: 'That time was not recognised. Choose a mark, or type something like *2h 15m* (up to 24 hours).',
+        footer: stepFooter(7, 'Time spent'),
+      });
+      return;
+    }
+
+    await this.sessions.advance(to, 'task_add_attachment', hours != null ? { hoursSpent: String(hours) } : {});
+    await this.client.sendMessage(to, {
+      type: 'buttons',
+      header: ADD_HEADER,
+      text:
+        '*Proof of work (optional)*\n\n' +
+        `Send up to ${MAX_ATTACHMENTS_PER_TASK} screenshots or photos, one at a time. They will be attached to this task.`,
+      footer: 'Almost done · You will review everything next',
+      buttons: [{ id: 'att_skip', title: 'Skip to Review' }],
+    });
+  }
+
+  private async stepAddAttachment(to: string, normalized: string, session: Session): Promise<void> {
+    if (normalized === 'att_skip' || normalized === 'att_done' || normalized === 'skip' || normalized === 'done') {
+      await this.showAddConfirm(to, session);
+      return;
+    }
+    const count = attachmentsFromSession(session.data).length;
+    await this.client.sendMessage(to, {
+      type: 'buttons',
+      header: ADD_HEADER,
+      text:
+        count > 0
+          ? `${plural(count, 'screenshot')} attached so far. Send another photo, or continue to review.`
+          : 'Send a photo as proof of work, or continue without one.',
+      buttons: [{ id: count > 0 ? 'att_done' : 'att_skip', title: count > 0 ? 'Continue to Review' : 'Skip to Review' }],
+    });
+  }
+
+  private async stepAddAttachmentImage(to: string, message: ImageMessage): Promise<void> {
+    const session = await this.sessions.get(to);
+    const pending = attachmentsFromSession(session.data);
+
+    if (pending.length >= MAX_ATTACHMENTS_PER_TASK) {
+      await this.client.sendMessage(to, {
+        type: 'buttons',
+        header: ADD_HEADER,
+        text: `This task already has the maximum of ${MAX_ATTACHMENTS_PER_TASK} screenshots.`,
+        buttons: [{ id: 'att_done', title: 'Continue to Review' }],
+      });
+      return;
+    }
+
+    const updated = [...pending, { mediaId: message.image.id, mimeType: message.image.mime_type }];
+    await this.sessions.setData(to, 'attachments', JSON.stringify(updated));
+
+    const remaining = MAX_ATTACHMENTS_PER_TASK - updated.length;
+    await this.client.sendMessage(to, {
+      type: 'buttons',
+      header: ADD_HEADER,
+      text:
+        `*Screenshot ${updated.length} received*\n` +
+        `${gauge(updated.length / MAX_ATTACHMENTS_PER_TASK, MAX_ATTACHMENTS_PER_TASK)}  ${updated.length} of ${MAX_ATTACHMENTS_PER_TASK}\n\n` +
+        (remaining > 0 ? 'Send another, or continue to review.' : 'That is the limit for one task.'),
+      buttons: [{ id: 'att_done', title: 'Continue to Review' }],
     });
   }
 
   private async showAddConfirm(to: string, session: Session): Promise<void> {
     const draft = draftFromSession(session.data);
-    const hoursLine = draft.hoursSpent != null ? `Hours: *${draft.hoursSpent}*\n` : '';
     const attachmentCount = attachmentsFromSession(session.data).length;
-    const attachmentLine =
-      attachmentCount > 0 ? `📎 Screenshot${attachmentCount === 1 ? '' : 's'}: *${attachmentCount} attached*\n` : '';
+
+    const card = formatTaskSummary({
+      vertical: draft.vertical,
+      category: draft.category,
+      organization: draft.organization,
+      description: draft.description ?? '',
+      customerProject: draft.customerProject,
+      status: draft.status,
+      hoursSpent: draft.hoursSpent ?? null,
+      percentComplete: draft.percentComplete,
+    });
+    const evidence = attachmentCount > 0 ? `\nEvidence: ${plural(attachmentCount, 'screenshot')}` : '';
 
     await this.sessions.setFlow(to, 'task_add_confirm');
     await this.client.sendMessage(to, {
       type: 'buttons',
-      text:
-        '*Confirm New Task*\n\n' +
-        `Vertical: *${VERTICAL_LABELS[draft.vertical!]}*\n` +
-        `Category: *${CATEGORY_LABELS[draft.category!]}*\n` +
-        `Status: *${STATUS_LABELS[draft.status]}*\n` +
-        hoursLine +
-        attachmentLine +
-        `Description: ${draft.description ?? 'Not provided'}\n` +
-        (draft.customerProject ? `Project: ${draft.customerProject}\n` : '') +
-        '\nSave this task?',
-      buttons: YES_NO_BUTTONS,
+      header: 'Review Task',
+      text: `${card}${evidence}`,
+      footer: 'Nothing is saved until you tap Save Task',
+      buttons: REVIEW_BUTTONS,
     });
+  }
+
+  private async stepAddConfirm(to: string, user: User, normalized: string, session: Session): Promise<void> {
+    if (normalized === 'confirm_yes') {
+      await this.completeAddTask(to, user, session);
+      return;
+    }
+    if (normalized === 'confirm_restart') {
+      await this.startAddTask(to);
+      return;
+    }
+    if (normalized === 'confirm_no') {
+      await this.showMainMenu(to, user, 'Task discarded. Nothing was saved.');
+      return;
+    }
+    await this.showAddConfirm(to, session);
   }
 
   private async completeAddTask(to: string, user: User, session: Session): Promise<void> {
@@ -481,6 +936,7 @@ export class WhatsAppBotService {
         date: todayDateString(),
         vertical: draft.vertical!,
         category: draft.category!,
+        organization: draft.organization,
         description: draft.description!,
         customerProject: draft.customerProject,
         status: draft.status,
@@ -493,13 +949,14 @@ export class WhatsAppBotService {
         attachmentNote = await this.saveAttachmentsFromSession(task.id, user, session);
       }
 
-      await this.sessions.reset(to);
-      await this.client.sendMessage(to, { type: 'text', text: '✓ Task saved.\n\n' + formatTaskSummary(task) + attachmentNote });
+      await this.showMainMenu(to, user, `*Task saved*\n\n${formatTaskSummary(task)}${attachmentNote}`);
     } catch (err) {
       this.app.log.error({ err }, 'Create task from WhatsApp bot failed');
       await this.client.sendMessage(to, {
-        type: 'text',
-        text: 'Could not save the task. Please check your entries and try again.',
+        type: 'buttons',
+        header: 'Review Task',
+        text: 'The task could not be saved. Your answers are still here, so you can try again.',
+        buttons: REVIEW_BUTTONS,
       });
     }
   }
@@ -532,278 +989,94 @@ export class WhatsAppBotService {
       }
     }
 
-    if (failed === 0) return `\n\n📎 ${saved} screenshot${saved === 1 ? '' : 's'} attached.`;
-    if (saved === 0) {
-      return `\n\n⚠️ ${failed} screenshot${failed === 1 ? '' : 's'} could not be saved, but the task was saved without ${failed === 1 ? 'it' : 'them'}.`;
-    }
-    return `\n\n📎 ${saved} screenshot${saved === 1 ? '' : 's'} attached (${failed} failed to save).`;
+    if (failed === 0) return `\nEvidence: ${plural(saved, 'screenshot')} attached`;
+    if (saved === 0) return `\nEvidence: ${plural(failed, 'screenshot')} could not be saved. Add them from the web portal.`;
+    return `\nEvidence: ${saved} attached, ${failed} could not be saved`;
   }
 
-  private async handleMenuAction(to: string, user: User, actionId: string): Promise<void> {
-    switch (actionId) {
-      case 'tasks_today':
-        await this.showTodayTasks(to, user);
-        return;
-      case 'tasks_week':
-        await this.showWeekTasks(to, user);
-        return;
-      case 'task_add':
-        await this.startAddTask(to);
-        return;
-      case 'task_update':
-        await this.startUpdateTask(to, user);
-        return;
-      case 'my_profile':
-        await this.showProfile(to, user);
-        return;
-      case 'help':
-        await this.showHelp(to);
-        return;
-      case 'main_menu':
-        await this.showMainMenu(to, user);
-        return;
-      default:
-        await this.client.sendMessage(to, { type: 'text', text: "I didn't recognize that option. Please choose from the menu." });
-        await this.showMainMenu(to, user);
-    }
-  }
+  // ── Update Task ──────────────────────────────────────────────────────────
 
-  // ── Multi-step flows ─────────────────────────────────────────────────────
+  private async startUpdateTask(to: string, user: User): Promise<void> {
+    const today = todayDateString();
+    const { data: taskList } = await this.tasks.getTasks(this.actorFor(user), {
+      userId: user.id,
+      from: today,
+      to: today,
+      page: 1,
+      limit: 9, // plus the Main Menu row = WhatsApp's 10-row limit
+    });
 
-  private async handleActiveFlow(
-    to: string,
-    user: User,
-    input: string,
-    normalized: string,
-    session: Session
-  ): Promise<void> {
-    if (normalized === 'back' || normalized === 'cancel' || normalized === 'main_menu') {
-      await this.showMainMenu(to, user);
+    if (taskList.length === 0) {
+      await this.showMainMenu(to, user, 'There is nothing logged today to update yet. Start with *Log New Task*.');
       return;
     }
 
-    switch (session.flow) {
-      case 'task_add_vertical':
-        await this.stepAddVertical(to, input, session);
-        return;
-      case 'task_add_category':
-        await this.stepAddCategory(to, input, session);
-        return;
-      case 'task_add_description':
-        await this.stepAddDescription(to, input);
-        return;
-      case 'task_add_project':
-        await this.stepAddProject(to, input, normalized);
-        return;
-      case 'task_add_status':
-        await this.stepAddStatus(to, input);
-        return;
-      case 'task_add_hours':
-        await this.stepAddHours(to, input, normalized, session);
-        return;
-      case 'task_add_attachment':
-        await this.stepAddAttachment(to, normalized);
-        return;
-      case 'task_add_confirm':
-        await this.stepAddConfirm(to, user, normalized, session);
-        return;
-      case 'task_update_pick':
-        await this.stepUpdatePick(to, user, input);
-        return;
-      case 'task_update_field':
-        await this.stepUpdateField(to, user, input, session);
-        return;
-      case 'task_update_status':
-        await this.stepUpdateStatus(to, user, input, session);
-        return;
-      case 'task_update_percent':
-        await this.stepUpdatePercent(to, user, input, session);
-        return;
-      case 'task_update_blockers':
-        await this.stepUpdateBlockers(to, user, input, normalized, session);
-        return;
-      default:
-        await this.showMainMenu(to, user);
-    }
-  }
-
-  private async stepAddVertical(to: string, input: string, session: Session): Promise<void> {
-    const page = Number(session.data.verticalPage ?? '0');
-    if (input === 'vert_next' || input === 'vert_prev') {
-      const nextPage = input === 'vert_next' ? page + 1 : Math.max(0, page - 1);
-      await this.sessions.setData(to, 'verticalPage', String(nextPage));
-      await this.client.sendMessage(to, {
-        type: 'list',
-        text: 'Select the *task vertical*:',
-        buttonLabel: 'Select Vertical',
-        rows: paginatedRows(VERTICAL_VALUES, VERTICAL_LABELS, nextPage, 'vert'),
-      });
-      return;
-    }
-
-    const vertical = resolveFromId(input, 'vert', VERTICAL_VALUES);
-    if (!vertical) {
-      await this.startAddTask(to);
-      return;
-    }
-    await this.sessions.setData(to, 'vertical', vertical);
-    await this.sessions.setData(to, 'categoryPage', '0');
-    await this.sessions.setFlow(to, 'task_add_category');
+    await this.sessions.reset(to);
+    await this.sessions.setFlow(to, 'task_update_pick');
     await this.client.sendMessage(to, {
       type: 'list',
-      text: 'Step 2 of 5: Select the *task category*:',
-      buttonLabel: 'Select Category',
-      rows: paginatedRows(CATEGORY_VALUES, CATEGORY_LABELS, 0, 'cat'),
+      header: UPDATE_HEADER,
+      text: '*Which task would you like to update?*\n\nShowing what you logged today.',
+      footer: MENU_FOOTER,
+      buttonLabel: 'Choose Task',
+      sections: [
+        {
+          title: "Today's tasks",
+          rows: taskList.map((task, index) => ({
+            id: `task_${task.id}`,
+            title: `${index + 1}. ${CATEGORY_LABELS[task.category]}`,
+            description:
+              `${STATUS_LABELS[task.status]} · ${task.percentComplete}%` +
+              (task.hoursSpent > 0 ? ` · ${formatDuration(task.hoursSpent)}` : '') +
+              ` · ${clip(task.description, 40)}`,
+          })),
+        },
+        { title: 'Navigation', rows: [{ id: 'main_menu', title: 'Main Menu', description: 'Leave without changes' }] },
+      ],
     });
   }
 
-  private async stepAddCategory(to: string, input: string, session: Session): Promise<void> {
-    const page = Number(session.data.categoryPage ?? '0');
-    if (input === 'cat_next' || input === 'cat_prev') {
-      const nextPage = input === 'cat_next' ? page + 1 : Math.max(0, page - 1);
-      await this.sessions.setData(to, 'categoryPage', String(nextPage));
-      await this.client.sendMessage(to, {
-        type: 'list',
-        text: 'Select the *task category*:',
-        buttonLabel: 'Select Category',
-        rows: paginatedRows(CATEGORY_VALUES, CATEGORY_LABELS, nextPage, 'cat'),
-      });
-      return;
+  /** The chosen task's card plus a list of what can be changed, each row showing its current value. */
+  private async sendUpdateFieldPicker(to: string, user: User, taskId: string): Promise<boolean> {
+    let task;
+    try {
+      task = await this.tasks.getTaskById(taskId, this.actorFor(user));
+    } catch {
+      task = null;
     }
+    if (!task) return false;
 
-    const category = resolveFromId(input, 'cat', CATEGORY_VALUES);
-    if (!category) {
-      await this.client.sendMessage(to, {
-        type: 'list',
-        text: 'Select the *task category*:',
-        buttonLabel: 'Select Category',
-        rows: paginatedRows(CATEGORY_VALUES, CATEGORY_LABELS, page, 'cat'),
-      });
-      return;
-    }
-    await this.sessions.setData(to, 'category', category);
-    await this.sessions.setFlow(to, 'task_add_description');
-    await this.client.sendMessage(to, {
-      type: 'text',
-      text: 'Step 3 of 5: Describe what you worked on.\n\nEnter a short *task description* (at least 5 characters).',
-    });
-  }
-
-  private async stepAddDescription(to: string, input: string): Promise<void> {
-    if (input.length < 5) {
-      await this.client.sendMessage(to, { type: 'text', text: 'Please enter a bit more detail (at least 5 characters).' });
-      return;
-    }
-    await this.sessions.setData(to, 'description', input);
-    await this.sessions.setFlow(to, 'task_add_project');
-    await this.client.sendMessage(to, {
-      type: 'text',
-      text: 'Step 4 of 5: Customer or project name?\n\nEnter the name, or type *skip* to leave blank.',
-    });
-  }
-
-  private async stepAddProject(to: string, input: string, normalized: string): Promise<void> {
-    if (normalized !== 'skip') {
-      await this.sessions.setData(to, 'customerProject', input);
-    }
-    await this.sessions.setFlow(to, 'task_add_status');
     await this.client.sendMessage(to, {
       type: 'list',
-      text: 'Step 5 of 5: Select the *status*:',
-      buttonLabel: 'Select Status',
-      rows: paginatedRows(STATUS_VALUES, STATUS_LABELS, 0, 'status'),
+      header: UPDATE_HEADER,
+      text: `${formatTaskSummary(task)}\n\n*What would you like to change?*`,
+      buttonLabel: 'Choose Field',
+      sections: [
+        {
+          title: 'Fields',
+          rows: [
+            { id: 'upd_status', title: 'Status', description: `Now: ${STATUS_LABELS[task.status]}` },
+            { id: 'upd_progress', title: 'Progress', description: `${gauge(task.percentComplete / 100)}  ${task.percentComplete}%` },
+            {
+              id: 'upd_hours',
+              title: 'Time Spent',
+              description:
+                task.hoursSpent > 0
+                  ? `${gauge(task.hoursSpent / WORKDAY_HOURS)}  ${formatDuration(task.hoursSpent)}`
+                  : 'Not recorded yet',
+            },
+            {
+              id: 'upd_org',
+              title: 'Organization',
+              description: task.organization ? ORGANIZATION_LABELS[task.organization as Organization] : 'Not set',
+            },
+            { id: 'upd_blockers', title: 'Blockers', description: task.blockersNotes ? clip(task.blockersNotes, 60) : 'None recorded' },
+          ],
+        },
+        { title: 'Navigation', rows: [{ id: 'main_menu', title: 'Main Menu', description: 'Leave without changes' }] },
+      ],
     });
-  }
-
-  private async stepAddStatus(to: string, input: string): Promise<void> {
-    const status = resolveFromId(input, 'status', STATUS_VALUES);
-    if (!status) {
-      await this.client.sendMessage(to, {
-        type: 'list',
-        text: 'Select the *status*:',
-        buttonLabel: 'Select Status',
-        rows: paginatedRows(STATUS_VALUES, STATUS_LABELS, 0, 'status'),
-      });
-      return;
-    }
-    await this.sessions.setData(to, 'status', status);
-    await this.sessions.setData(to, 'percentComplete', String(defaultPercentForStatus(status)));
-    await this.sessions.setFlow(to, 'task_add_hours');
-    await this.client.sendMessage(to, {
-      type: 'text',
-      text: 'How many *hours* did you spend? (e.g. 2.5)\n\nType *skip* if unknown.',
-    });
-  }
-
-  private async stepAddHours(to: string, input: string, normalized: string, session: Session): Promise<void> {
-    if (normalized !== 'skip') {
-      const hours = Number(input.replace(/,/g, ''));
-      if (!Number.isFinite(hours) || hours < 0 || hours > 24) {
-        await this.client.sendMessage(to, { type: 'text', text: 'Enter a valid number of hours (0 to 24), or type *skip*.' });
-        return;
-      }
-      await this.sessions.setData(to, 'hoursSpent', String(hours));
-    }
-    await this.sessions.setFlow(to, 'task_add_attachment');
-    await this.client.sendMessage(to, {
-      type: 'text',
-      text:
-        `Optional: send one or more *screenshots* as proof of work (up to ${MAX_ATTACHMENTS_PER_TASK}, one at a time), ` +
-        'or type *skip* to continue without any.',
-    });
-  }
-
-  private async stepAddAttachment(to: string, normalized: string): Promise<void> {
-    if (normalized === 'skip' || normalized === 'done') {
-      await this.showAddConfirm(to, await this.sessions.get(to));
-      return;
-    }
-    const session = await this.sessions.get(to);
-    const count = attachmentsFromSession(session.data).length;
-    await this.client.sendMessage(to, {
-      type: 'text',
-      text:
-        count > 0
-          ? `You've attached ${count} screenshot${count === 1 ? '' : 's'} so far. Send another photo, or type *done* to continue.`
-          : 'Send a photo as proof of work, or type *skip* to continue.',
-    });
-  }
-
-  private async stepAddAttachmentImage(to: string, message: ImageMessage): Promise<void> {
-    const session = await this.sessions.get(to);
-    const pending = attachmentsFromSession(session.data);
-
-    if (pending.length >= MAX_ATTACHMENTS_PER_TASK) {
-      await this.client.sendMessage(to, {
-        type: 'text',
-        text: `You've reached the ${MAX_ATTACHMENTS_PER_TASK}-screenshot limit for a task. Type *done* to continue.`,
-      });
-      return;
-    }
-
-    const updated = [...pending, { mediaId: message.image.id, mimeType: message.image.mime_type }];
-    await this.sessions.setData(to, 'attachments', JSON.stringify(updated));
-
-    const remaining = MAX_ATTACHMENTS_PER_TASK - updated.length;
-    await this.client.sendMessage(to, {
-      type: 'text',
-      text:
-        `📎 Screenshot ${updated.length} received.\n\n` +
-        (remaining > 0
-          ? `Send another, or type *done* to continue (up to ${remaining} more).`
-          : `That's the limit of ${MAX_ATTACHMENTS_PER_TASK}. Type *done* to continue.`),
-    });
-  }
-
-  private async stepAddConfirm(to: string, user: User, normalized: string, session: Session): Promise<void> {
-    if (normalized === 'confirm_yes') {
-      await this.completeAddTask(to, user, session);
-      await this.showMainMenu(to, user);
-      return;
-    }
-    if (normalized === 'confirm_no') {
-      await this.showMainMenu(to, user);
-    }
+    return true;
   }
 
   private async stepUpdatePick(to: string, user: User, input: string): Promise<void> {
@@ -812,70 +1085,132 @@ export class WhatsAppBotService {
       return;
     }
     const taskId = input.slice('task_'.length);
-    try {
-      const task = await this.tasks.getTaskById(taskId, this.actorFor(user));
-      await this.sessions.setData(to, 'updateTaskId', taskId);
-      await this.sessions.setFlow(to, 'task_update_field');
-      await this.client.sendMessage(to, { type: 'text', text: formatTaskSummary(task!) });
-      await this.client.sendMessage(to, { type: 'buttons', text: 'What would you like to update?', buttons: UPDATE_FIELD_BUTTONS });
-    } catch {
-      await this.client.sendMessage(to, { type: 'text', text: 'Task not found. It may have been removed.' });
-      await this.showMainMenu(to, user);
+    await this.sessions.advance(to, 'task_update_field', { updateTaskId: taskId });
+    if (!(await this.sendUpdateFieldPicker(to, user, taskId))) {
+      await this.showMainMenu(to, user, 'That task could not be found. It may have been removed.');
     }
   }
 
   private async stepUpdateField(to: string, user: User, input: string, session: Session): Promise<void> {
-    if (!session.data.updateTaskId) {
+    const taskId = session.data.updateTaskId;
+    if (!taskId) {
       await this.showMainMenu(to, user);
       return;
     }
 
-    if (input === 'upd_status') {
-      await this.sessions.setFlow(to, 'task_update_status');
-      await this.client.sendMessage(to, {
-        type: 'list',
-        text: 'Select the new *status*:',
-        buttonLabel: 'Select Status',
-        rows: paginatedRows(STATUS_VALUES, STATUS_LABELS, 0, 'status'),
-      });
-      return;
+    switch (input) {
+      case 'upd_status':
+        await this.sessions.setFlow(to, 'task_update_status');
+        await this.sendStatusPicker(to, { header: UPDATE_HEADER, text: '*Choose the new status*' });
+        return;
+      case 'upd_progress':
+        await this.sessions.setFlow(to, 'task_update_percent');
+        await this.sendPercentSlider(to, {
+          header: UPDATE_HEADER,
+          text: '*How far along is it now?*\n\nSlide to the closest mark, or choose *Exact value*.',
+        });
+        return;
+      case 'upd_hours':
+        await this.sessions.setFlow(to, 'task_update_hours');
+        await this.sendHoursSlider(to, {
+          header: UPDATE_HEADER,
+          text: '*How much time has it taken in total?*\n\nChoose the closest mark, or *Exact time* to type it.',
+        });
+        return;
+      case 'upd_org':
+        await this.sessions.setFlow(to, 'task_update_organization');
+        await this.sendOrganizationPicker(to, user, {
+          header: UPDATE_HEADER,
+          text: '*Which organization is this for?*',
+          footer: MENU_FOOTER,
+        });
+        return;
+      case 'upd_blockers':
+        await this.sessions.setFlow(to, 'task_update_blockers');
+        await this.client.sendMessage(to, {
+          type: 'buttons',
+          header: UPDATE_HEADER,
+          text: "*What's holding it up?*\n\nType the blocker notes, or clear any existing ones.",
+          buttons: [{ id: 'blk_clear', title: 'Clear Blockers' }, BACK_BUTTON],
+        });
+        return;
+      default:
+        if (!(await this.sendUpdateFieldPicker(to, user, taskId))) await this.showMainMenu(to, user);
     }
-    if (input === 'upd_progress') {
-      await this.sessions.setFlow(to, 'task_update_percent');
-      await this.client.sendMessage(to, { type: 'text', text: 'Enter progress as a percentage (0 to 100), for example 75.' });
-      return;
-    }
-    if (input === 'upd_blockers') {
-      await this.sessions.setFlow(to, 'task_update_blockers');
-      await this.client.sendMessage(to, { type: 'text', text: 'Enter *blocker notes*, or type *clear* to remove blockers.' });
-      return;
-    }
-    await this.client.sendMessage(to, { type: 'buttons', text: 'Choose a field to update:', buttons: UPDATE_FIELD_BUTTONS });
   }
 
   private async stepUpdateStatus(to: string, user: User, input: string, session: Session): Promise<void> {
     const status = resolveFromId(input, 'status', STATUS_VALUES);
     const taskId = session.data.updateTaskId;
     if (!status || !taskId) {
-      await this.client.sendMessage(to, {
-        type: 'list',
-        text: 'Select the new *status*:',
-        buttonLabel: 'Select Status',
-        rows: paginatedRows(STATUS_VALUES, STATUS_LABELS, 0, 'status'),
-      });
+      await this.sendStatusPicker(to, { header: UPDATE_HEADER, text: '*Choose the new status* from the list.' });
       return;
     }
-    await this.finishUpdate(to, user, taskId, { status, percentComplete: defaultPercentForStatus(status) }, '✓ Task updated.');
+
+    // Keep partial progress the user already recorded; only snap to the
+    // status's implied value when it would otherwise contradict it.
+    let percentComplete: number | undefined;
+    if (!statusNeedsProgress(status)) {
+      percentComplete = defaultPercentForStatus(status);
+    } else {
+      const current = await this.tasks.getTaskById(taskId, this.actorFor(user)).catch(() => null);
+      if (!current || current.percentComplete === 0 || current.percentComplete === 100) {
+        percentComplete = defaultPercentForStatus(status);
+      }
+    }
+
+    await this.finishUpdate(to, user, taskId, { status, ...(percentComplete !== undefined ? { percentComplete } : {}) });
   }
 
   private async stepUpdatePercent(to: string, user: User, input: string, session: Session): Promise<void> {
     const taskId = session.data.updateTaskId;
-    const pct = Number(input.replace('%', '').trim());
-    if (!taskId || !Number.isFinite(pct) || pct < 0 || pct > 100) {
-      await this.client.sendMessage(to, { type: 'text', text: 'Enter a number between 0 and 100.' });
+    if (input === PERCENT_CUSTOM_ID) {
+      await this.client.sendMessage(to, { type: 'text', text: 'Type the progress as a number from 0 to 100, for example *65*.' });
       return;
     }
-    await this.finishUpdate(to, user, taskId, { percentComplete: Math.round(pct) }, '✓ Progress updated.');
+    const pct = parsePercent(input);
+    if (!taskId || pct == null) {
+      await this.sendPercentSlider(to, {
+        header: UPDATE_HEADER,
+        text: 'That was not a percentage between 0 and 100. Choose a mark, or type a number such as *65*.',
+      });
+      return;
+    }
+    await this.finishUpdate(to, user, taskId, { percentComplete: pct });
+  }
+
+  private async stepUpdateHours(to: string, user: User, input: string, session: Session): Promise<void> {
+    const taskId = session.data.updateTaskId;
+    if (input === HOURS_CUSTOM_ID) {
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: 'Type the total time spent, for example *2.5*, *2h 15m*, *45m* or *1:30*.',
+      });
+      return;
+    }
+    const hours = parseHours(input);
+    if (!taskId || hours == null) {
+      await this.sendHoursSlider(to, {
+        header: UPDATE_HEADER,
+        text: 'That time was not recognised. Choose a mark, or type something like *2h 15m* (up to 24 hours).',
+      });
+      return;
+    }
+    await this.finishUpdate(to, user, taskId, { hoursSpent: hours });
+  }
+
+  private async stepUpdateOrganization(to: string, user: User, input: string, session: Session): Promise<void> {
+    const taskId = session.data.updateTaskId;
+    const organization = resolveFromId(input, 'org', ORGANIZATION_VALUES);
+    if (!taskId || !organization) {
+      await this.sendOrganizationPicker(to, user, {
+        header: UPDATE_HEADER,
+        text: '*Which organization is this for?*\n\nChoose one from the list.',
+        footer: MENU_FOOTER,
+      });
+      return;
+    }
+    await this.finishUpdate(to, user, taskId, { organization });
   }
 
   private async stepUpdateBlockers(to: string, user: User, input: string, normalized: string, session: Session): Promise<void> {
@@ -884,26 +1219,22 @@ export class WhatsAppBotService {
       await this.showMainMenu(to, user);
       return;
     }
-    const notes = normalized === 'clear' ? '' : input;
-    await this.finishUpdate(to, user, taskId, { blockersNotes: notes }, '✓ Blockers updated.');
+    const notes = input === 'blk_clear' || normalized === 'clear' ? '' : input;
+    await this.finishUpdate(to, user, taskId, { blockersNotes: notes });
   }
 
   private async finishUpdate(
     to: string,
     user: User,
     taskId: string,
-    data: Parameters<TaskService['updateTask']>[2],
-    successHeading: string
+    data: Parameters<TaskService['updateTask']>[2]
   ): Promise<void> {
     try {
       const updated = await this.tasks.updateTask(taskId, this.actorFor(user), data);
-      await this.sessions.reset(to);
-      await this.client.sendMessage(to, { type: 'text', text: `${successHeading}\n\n${formatTaskSummary(updated)}` });
+      await this.showMainMenu(to, user, `*Task updated*\n\n${formatTaskSummary(updated)}`);
     } catch (err) {
       this.app.log.error({ err }, 'Update task from WhatsApp bot failed');
-      await this.sessions.reset(to);
-      await this.client.sendMessage(to, { type: 'text', text: 'Could not update the task. Please try again.' });
+      await this.showMainMenu(to, user, 'The task could not be updated. Please try again.');
     }
-    await this.showMainMenu(to, user);
   }
 }
