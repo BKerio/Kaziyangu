@@ -41,7 +41,7 @@ export interface WebhookContact {
   user_id?: string;
 }
 
-export type IncomingMessage = TextMessage | InteractiveMessage | ButtonMessage | ImageMessage;
+export type IncomingMessage = TextMessage | InteractiveMessage | ButtonMessage | ImageMessage | DocumentMessage;
 
 interface BaseMessage {
   /** Usually the sender's phone digits; may be a BSUID or missing for username-only senders. */
@@ -60,6 +60,12 @@ export interface TextMessage extends BaseMessage {
 export interface ImageMessage extends BaseMessage {
   type: 'image';
   image: { id: string; mime_type: string; sha256: string; caption?: string };
+}
+
+/** A file sent with WhatsApp's attach-document option - a PDF or Word file attached as proof of work. */
+export interface DocumentMessage extends BaseMessage {
+  type: 'document';
+  document: { id: string; mime_type: string; sha256: string; filename?: string; caption?: string };
 }
 
 export interface InteractiveMessage extends BaseMessage {

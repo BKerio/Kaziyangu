@@ -38,8 +38,9 @@ export type TaskFormValues = z.infer<typeof taskSchema>;
 // Keep in sync with backend/src/modules/tasks/attachment-constants.ts.
 const MAX_ATTACHMENTS = 8;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const ALLOWED_ATTACHMENT_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']);
-const ALLOWED_ATTACHMENT_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf';
+export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const ALLOWED_ATTACHMENT_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', DOCX_MIME]);
+const ALLOWED_ATTACHMENT_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.docx';
 
 const WORKDAY_HOURS = 8;
 const HOUR_SLIDER_MAX = 12;
@@ -278,7 +279,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
 
     for (const file of picked) {
       if (!ALLOWED_ATTACHMENT_MIMES.has(file.type)) {
-        error = `"${file.name}" isn't a supported file type (JPG, PNG, WEBP, GIF or PDF only).`;
+        error = `"${file.name}" isn't a supported file type (JPG, PNG, WEBP, GIF, PDF or Word .docx only).`;
         continue;
       }
       if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -617,7 +618,7 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
               >
                 <UploadCloud size={24} />
                 <span>{dragging ? 'Drop to attach' : 'Drag screenshots here, or click to browse'}</span>
-                <span className="file-dropzone-hint">JPG, PNG, WEBP, GIF or PDF · up to {MAX_ATTACHMENTS} files, 10MB each</span>
+                <span className="file-dropzone-hint">Images, PDF or Word (.docx) · up to {MAX_ATTACHMENTS} files, 10MB each</span>
               </label>
               <input
                 id="task-files"

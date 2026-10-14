@@ -2,7 +2,14 @@ import { AppContext } from '../../context.js';
 import { Organization, Role, TaskCategory, TaskStatus, TaskVertical } from '../../shared/types/index.js';
 import type { User } from '../../generated/prisma/index.js';
 import { CATEGORY_LABELS, ORGANIZATION_LABELS, STATUS_LABELS, VERTICAL_LABELS } from '../tasks/task-options.js';
-import { MAX_ATTACHMENTS_PER_TASK } from '../tasks/attachment-constants.js';
+import {
+  ALLOWED_ATTACHMENT_MIMES,
+  DOCX_MIME,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENTS_PER_TASK,
+} from '../tasks/attachment-constants.js';
+
+const MAX_ATTACHMENT_MB = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
 import { TaskService } from '../tasks/task.service.js';
 import { TaskAttachmentService } from '../tasks/task-attachment.service.js';
 import { BotSessionService, Session } from './bot-session.service.js';
@@ -45,21 +52,46 @@ import {
   stepFooter,
   verticalRow,
 } from './ui.js';
-import type { ImageMessage, IncomingMessage, ListSection, ReplyButton, WebhookContact, WebhookPayload } from './whatsapp.types.js';
+import type { IncomingMessage, ListSection, ReplyButton, WebhookContact, WebhookPayload } from './whatsapp.types.js';
 
-/** Best-effort file extension for a screenshot downloaded from WhatsApp, from its MIME type. */
+/** Best-effort file extension for a file downloaded from WhatsApp, from its MIME type. */
 function extFromMime(mimeType: string): string {
+  if (mimeType === 'application/pdf') return '.pdf';
+  if (mimeType === DOCX_MIME) return '.docx';
   const match = /^image\/(jpeg|png|webp|gif)$/.exec(mimeType);
   if (!match) return '';
   return `.${match[1] === 'jpeg' ? 'jpg' : match[1]}`;
 }
 
+/** "PDF", "Word document" or "Screenshot" - how a queued file is described back to the user. */
+function kindOf(mimeType: string): string {
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType === DOCX_MIME) return 'Word document';
+  return 'Screenshot';
+}
+
+/** A sender-supplied file name, made safe to store and display: no path parts or control characters, sensible length. */
+function cleanFileName(name: string | undefined): string {
+  const base = (name ?? '').split(/[\\/]/).pop() ?? '';
+  // eslint-disable-next-line no-control-regex
+  return base.replace(/[\u0000-\u001f"<>|*?]/g, '').trim().slice(0, 120);
+}
+
 interface PendingAttachment {
   mediaId: string;
   mimeType: string;
+  /** Original name for documents; photos arrive without one. */
+  fileName?: string;
 }
 
-/** Screenshots queued so far for the task being logged - stored as a JSON blob under one session key, since Session.data is a flat string map. */
+/** An incoming photo or document, normalised to what the attachment step needs. */
+interface IncomingMedia {
+  id: string;
+  mimeType: string;
+  fileName?: string;
+}
+
+/** Files queued so far for the task being logged - stored as a JSON blob under one session key, since Session.data is a flat string map. */
 function attachmentsFromSession(data: Record<string, string>): PendingAttachment[] {
   if (!data.attachments) return [];
   try {
@@ -276,15 +308,20 @@ export class WhatsAppBotService {
       return;
     }
 
-    if (message.type === 'image') {
+    if (message.type === 'image' || message.type === 'document') {
+      const media: IncomingMedia =
+        message.type === 'image'
+          ? { id: message.image.id, mimeType: message.image.mime_type }
+          : { id: message.document.id, mimeType: message.document.mime_type, fileName: cleanFileName(message.document.filename) };
+
       const session = await this.sessions.get(to);
       if (session.flow === 'task_add_attachment') {
-        await this.stepAddAttachmentImage(to, message);
+        await this.stepAddAttachmentMedia(to, media);
       } else {
         await this.client.sendMessage(to, {
           type: 'buttons',
           header: ASSISTANT_NAME,
-          text: 'Screenshots are added while logging a task, just before you review it.\n\nStart with *Log New Task* and you will be asked for them at the right moment.',
+          text: 'Files are added while logging a task, just before you review it.\n\nStart with *Log New Task* and you will be asked for them at the right moment.',
           buttons: [{ id: 'task_add', title: 'Log New Task' }, BACK_BUTTON],
         });
       }
@@ -295,7 +332,7 @@ export class WhatsAppBotService {
     if (!input) {
       await this.client.sendMessage(to, {
         type: 'text',
-        text: 'The Task Assistant understands text, photos and menu selections. Type *menu* to see your options.',
+        text: 'The Task Assistant understands text, photos, PDF and Word files, and menu selections. Type *menu* to see your options.',
       });
       return;
     }
@@ -951,7 +988,9 @@ export class WhatsAppBotService {
       header: ADD_HEADER,
       text:
         '*Proof of work (optional)*\n\n' +
-        `Send up to ${MAX_ATTACHMENTS_PER_TASK} screenshots or photos, one at a time. They will be attached to this task.`,
+        `Send up to ${MAX_ATTACHMENTS_PER_TASK} files, one at a time: screenshots, photos, PDFs or Word documents (.docx), up to ${MAX_ATTACHMENT_MB} MB each. ` +
+        'They will be attached to this task.\n\n' +
+        '_To send a file, tap the attachment icon, then Document._',
       footer: 'Almost done · You will review everything next',
       buttons: [{ id: 'att_skip', title: 'Skip to Review' }],
     });
@@ -968,27 +1007,44 @@ export class WhatsAppBotService {
       header: ADD_HEADER,
       text:
         count > 0
-          ? `${plural(count, 'screenshot')} attached so far. Send another photo, or continue to review.`
-          : 'Send a photo as proof of work, or continue without one.',
+          ? `${plural(count, 'file')} attached so far. Send another photo, PDF or Word document, or continue to review.`
+          : 'Send a photo, PDF or Word document as proof of work, or continue without one.',
       buttons: [{ id: count > 0 ? 'att_done' : 'att_skip', title: count > 0 ? 'Continue to Review' : 'Skip to Review' }],
     });
   }
 
-  private async stepAddAttachmentImage(to: string, message: ImageMessage): Promise<void> {
+  private async stepAddAttachmentMedia(to: string, media: IncomingMedia): Promise<void> {
     const session = await this.sessions.get(to);
     const pending = attachmentsFromSession(session.data);
+    const continueButton: ReplyButton = {
+      id: pending.length > 0 ? 'att_done' : 'att_skip',
+      title: pending.length > 0 ? 'Continue to Review' : 'Skip to Review',
+    };
+
+    if (!ALLOWED_ATTACHMENT_MIMES.has(media.mimeType)) {
+      await this.client.sendMessage(to, {
+        type: 'buttons',
+        header: ADD_HEADER,
+        text:
+          `*${media.fileName || 'That file'}* can't be attached.\n\n` +
+          'Send a photo or screenshot (JPG, PNG, WEBP, GIF), a PDF, or a Word document (.docx). ' +
+          'Older .doc files need to be saved as .docx first.',
+        buttons: [continueButton],
+      });
+      return;
+    }
 
     if (pending.length >= MAX_ATTACHMENTS_PER_TASK) {
       await this.client.sendMessage(to, {
         type: 'buttons',
         header: ADD_HEADER,
-        text: `This task already has the maximum of ${MAX_ATTACHMENTS_PER_TASK} screenshots.`,
+        text: `This task already has the maximum of ${MAX_ATTACHMENTS_PER_TASK} files.`,
         buttons: [{ id: 'att_done', title: 'Continue to Review' }],
       });
       return;
     }
 
-    const updated = [...pending, { mediaId: message.image.id, mimeType: message.image.mime_type }];
+    const updated: PendingAttachment[] = [...pending, { mediaId: media.id, mimeType: media.mimeType, fileName: media.fileName }];
     await this.sessions.setData(to, 'attachments', JSON.stringify(updated));
 
     const remaining = MAX_ATTACHMENTS_PER_TASK - updated.length;
@@ -996,8 +1052,9 @@ export class WhatsAppBotService {
       type: 'buttons',
       header: ADD_HEADER,
       text:
-        `*Screenshot ${updated.length} received*\n` +
-        `${gauge(updated.length / MAX_ATTACHMENTS_PER_TASK, MAX_ATTACHMENTS_PER_TASK)}  ${updated.length} of ${MAX_ATTACHMENTS_PER_TASK}\n\n` +
+        `*${kindOf(media.mimeType)} received*` +
+        (media.fileName ? `\n${clip(media.fileName, 80)}` : '') +
+        `\n\n${gauge(updated.length / MAX_ATTACHMENTS_PER_TASK, MAX_ATTACHMENTS_PER_TASK)}  ${updated.length} of ${MAX_ATTACHMENTS_PER_TASK} files\n\n` +
         (remaining > 0 ? 'Send another, or continue to review.' : 'That is the limit for one task.'),
       buttons: [{ id: 'att_done', title: 'Continue to Review' }],
     });
@@ -1017,7 +1074,7 @@ export class WhatsAppBotService {
       hoursSpent: draft.hoursSpent ?? null,
       percentComplete: draft.percentComplete,
     });
-    const evidence = attachmentCount > 0 ? `\nEvidence: ${plural(attachmentCount, 'screenshot')}` : '';
+    const evidence = attachmentCount > 0 ? `\nEvidence: ${plural(attachmentCount, 'file')}` : '';
 
     await this.sessions.setFlow(to, 'task_add_confirm');
     await this.client.sendMessage(to, {
@@ -1078,37 +1135,47 @@ export class WhatsAppBotService {
     }
   }
 
-  /** Downloads every screenshot queued in the session and attaches each to the newly created task. */
+  /** Downloads every file queued in the session and attaches each to the newly created task. */
   private async saveAttachmentsFromSession(taskId: string, user: User, session: Session): Promise<string> {
     const pending = attachmentsFromSession(session.data);
     if (pending.length === 0) return '';
 
     let saved = 0;
-    let failed = 0;
+    const failures: string[] = [];
     for (const [index, att] of pending.entries()) {
+      const label = att.fileName || `${kindOf(att.mimeType).toLowerCase()} ${index + 1}`;
       const media = await this.client.downloadMedia(att.mediaId);
       if (!media) {
-        failed++;
+        failures.push(label);
+        continue;
+      }
+      const mimeType = media.mimeType || att.mimeType;
+      if (!ALLOWED_ATTACHMENT_MIMES.has(mimeType)) {
+        failures.push(`${label} (unsupported type)`);
+        continue;
+      }
+      if (media.buffer.length > MAX_ATTACHMENT_BYTES) {
+        failures.push(`${label} (over ${MAX_ATTACHMENT_MB} MB)`);
         continue;
       }
       try {
-        await this.attachments.addFromBuffer(
-          taskId,
-          user.id,
-          media.buffer,
-          media.mimeType || att.mimeType,
-          `whatsapp-screenshot-${index + 1}${extFromMime(media.mimeType || att.mimeType)}`
-        );
+        // Keep a document's own name; give photos (which arrive unnamed) a readable one.
+        const fileName =
+          att.fileName && /\.[a-z0-9]+$/i.test(att.fileName)
+            ? att.fileName
+            : `${att.fileName || `whatsapp-${kindOf(mimeType).toLowerCase().replace(/\s+/g, '-')}-${index + 1}`}${extFromMime(mimeType)}`;
+        await this.attachments.addFromBuffer(taskId, user.id, media.buffer, mimeType, fileName);
         saved++;
       } catch (err) {
-        this.app.log.error({ err, taskId }, 'Saving WhatsApp screenshot attachment failed');
-        failed++;
+        this.app.log.error({ err, taskId }, 'Saving WhatsApp attachment failed');
+        failures.push(label);
       }
     }
 
-    if (failed === 0) return `\nEvidence: ${plural(saved, 'screenshot')} attached`;
-    if (saved === 0) return `\nEvidence: ${plural(failed, 'screenshot')} could not be saved. Add them from the web portal.`;
-    return `\nEvidence: ${saved} attached, ${failed} could not be saved`;
+    if (failures.length === 0) return `\nEvidence: ${plural(saved, 'file')} attached`;
+    const failedList = failures.map((f) => clip(f, 60)).join(', ');
+    if (saved === 0) return `\nEvidence: could not save ${failedList}. Add ${failures.length === 1 ? 'it' : 'them'} from the web portal.`;
+    return `\nEvidence: ${plural(saved, 'file')} attached. Could not save ${failedList}.`;
   }
 
   // ── Update Task ──────────────────────────────────────────────────────────

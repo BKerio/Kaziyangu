@@ -8,6 +8,7 @@ import { attachmentFileUrl } from '@/lib/taskAttachments';
 import { TaskAttachment, WorkTask } from '@/types/api';
 import { statusPillClass } from '@/utils/taskStatus';
 import { fmtDate } from '@/lib/datetime';
+import { DOCX_MIME } from '@/components/tasks/TaskFormModal';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import PageLoader from '@/components/shared/PageLoader';
 
@@ -126,18 +127,32 @@ function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
 
                 {otherFiles.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {otherFiles.map((a) => (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => setPreview(a)}
-                        className="flex items-center gap-2"
-                        style={{ padding: '7px 10px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12.5, background: 'none', cursor: 'pointer', color: 'var(--ink)' }}
-                      >
-                        <FileText size={14} style={{ color: 'var(--muted)' }} />
-                        {a.fileName} <span style={{ color: 'var(--muted)' }}>({formatBytes(a.bytes)})</span>
-                      </button>
-                    ))}
+                    {otherFiles.map((a) => {
+                      const chipStyle = { padding: '7px 10px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12.5, background: 'none', cursor: 'pointer', color: 'var(--ink)', textDecoration: 'none' };
+                      const content = (
+                        <>
+                          <FileText size={14} style={{ color: a.mimeType === DOCX_MIME ? 'var(--blue)' : 'var(--muted)' }} />
+                          {a.fileName} <span style={{ color: 'var(--muted)' }}>({formatBytes(a.bytes)})</span>
+                        </>
+                      );
+                      // Browsers can't render Word files in a frame, so those download instead of previewing.
+                      return a.mimeType === DOCX_MIME ? (
+                        <a
+                          key={a.id}
+                          href={attachmentFileUrl(task.id, a.id, token)}
+                          download={a.fileName}
+                          className="flex items-center gap-2"
+                          style={chipStyle}
+                          title="Download Word document"
+                        >
+                          {content}
+                        </a>
+                      ) : (
+                        <button key={a.id} type="button" onClick={() => setPreview(a)} className="flex items-center gap-2" style={chipStyle}>
+                          {content}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
