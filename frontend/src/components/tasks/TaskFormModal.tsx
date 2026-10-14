@@ -264,6 +264,8 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
     evidence: files.length + (existingAttachments?.length ?? 0) > 0,
   };
 
+  const doneCount = SECTIONS.filter((s) => complete[s.id]).length;
+
   const jumpTo = (id: SectionId) => sectionEls.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const pickStatus = (status: string) => {
@@ -350,11 +352,26 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
                 className={`tf-step${activeSection === id ? ' active' : ''}${complete[id] ? ' done' : ''}`}
                 onClick={() => jumpTo(id)}
               >
-                <span className="tf-step-dot">{complete[id] ? <Check size={11} strokeWidth={3} /> : i + 1}</span>
+                <span className="tf-step-dot">{complete[id] ? <Check size={14} strokeWidth={3} /> : i + 1}</span>
                 {label}
               </button>
             ))}
           </nav>
+          <div className="tf-progress">
+            <div
+              className="tf-progress-track"
+              role="progressbar"
+              aria-label="Form completion"
+              aria-valuemin={0}
+              aria-valuemax={SECTIONS.length}
+              aria-valuenow={doneCount}
+            >
+              <div className="tf-progress-fill" style={{ width: `${(doneCount / SECTIONS.length) * 100}%` }} />
+            </div>
+            <span className={`tf-progress-label${doneCount === SECTIONS.length ? ' all' : ''}`}>
+              {doneCount} of {SECTIONS.length} complete
+            </span>
+          </div>
         </div>
 
         {/* Body */}

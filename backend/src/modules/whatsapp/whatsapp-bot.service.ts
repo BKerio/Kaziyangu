@@ -12,7 +12,7 @@ import {
 const MAX_ATTACHMENT_MB = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
 import { TaskService } from '../tasks/task.service.js';
 import { TaskAttachmentService } from '../tasks/task-attachment.service.js';
-import { BotSessionService, Session } from './bot-session.service.js';
+import { BotSessionService, FlowStep, Session } from './bot-session.service.js';
 import { WhatsAppClient } from './whatsapp.client.js';
 import { findUserByPhone } from './user-lookup.js';
 import { formatTaskSummary } from './task-format.js';
@@ -28,6 +28,8 @@ import {
   MENU_FOOTER,
   MENU_TRIGGERS,
   REVIEW_BUTTONS,
+  LEAVE_BUTTONS,
+  STEP_BACK_BUTTON,
   helpText,
   unregisteredText,
 } from './menus.js';
@@ -52,6 +54,7 @@ import {
   stepFooter,
   verticalRow,
   STEP,
+  TOTAL_STEPS,
   DATE_OTHER_ID,
   addDays,
   dateRows,
@@ -197,6 +200,23 @@ function resolveFromId<T extends string>(id: string, prefix: string, values: rea
   const candidate = id.slice(prefix.length + 1) as T;
   return values.includes(candidate) ? candidate : null;
 }
+
+/** True once a "Log New Task" draft holds answers worth protecting - past the opening date step. */
+function hasUnsavedDraft(session: Session): boolean {
+  return session.flow.startsWith('task_add_') && session.flow !== 'task_add_date';
+}
+
+/** Which numbered step a draft is on, for the "Leave this task?" prompt. */
+const FLOW_STEP: Partial<Record<FlowStep, number>> = {
+  task_add_vertical: STEP.vertical,
+  task_add_category: STEP.category,
+  task_add_organization: STEP.organization,
+  task_add_description: STEP.description,
+  task_add_project: STEP.project,
+  task_add_status: STEP.status,
+  task_add_percent: STEP.status,
+  task_add_hours: STEP.time,
+};
 
 /** Progress implied by a status that doesn't need asking about. */
 function defaultPercentForStatus(status: TaskStatus): number {
@@ -353,14 +373,23 @@ export class WhatsAppBotService {
     }
 
     const normalized = input.toLowerCase().trim();
+    const session = await this.sessions.get(to);
 
-    if (MENU_TRIGGERS.has(normalized)) {
-      if (normalized === 'help') await this.showHelp(to, user);
-      else await this.showMainMenu(to, user);
+    // "menu", "hi", "cancel" and the like mid-task would otherwise throw the
+    // whole draft away on one stray message - so confirm first. Saying it a
+    // second time while the confirmation is showing counts as the confirmation.
+    const wantsOut = MENU_TRIGGERS.has(normalized) || normalized === 'cancel' || input === 'main_menu';
+    if (wantsOut) {
+      const target = normalized === 'help' ? 'help' : 'menu';
+      const draft = hasUnsavedDraft(session);
+      if (draft && session.data.leave !== '1') {
+        await this.askLeaveConfirm(to, session, target);
+        return;
+      }
+      if (target === 'help') await this.showHelp(to, user);
+      else await this.showMainMenu(to, user, draft ? 'Task discarded. Nothing was saved.' : undefined);
       return;
     }
-
-    const session = await this.sessions.get(to);
 
     if (session.flow !== 'idle') {
       await this.handleActiveFlow(to, user, input, normalized, session);
@@ -595,6 +624,134 @@ export class WhatsAppBotService {
     }
   }
 
+  // ── Navigation safety ────────────────────────────────────────────────────
+
+  /**
+   * "Leave this task?" - shown instead of silently discarding a half-filled
+   * draft. Keep Going comes first and is the default way out; the draft stays
+   * untouched until Discard Task is tapped explicitly.
+   */
+  private async askLeaveConfirm(to: string, session: Session, target: 'menu' | 'help'): Promise<void> {
+    await this.sessions.advance(to, session.flow, { leave: '1', leaveTo: target });
+    const draft = draftFromSession(session.data);
+    const step = FLOW_STEP[session.flow];
+    const where = step ? `You're on step ${step} of ${TOTAL_STEPS}.` : "You're at the final review.";
+
+    const saved = [
+      `Date: ${fmtDayShort(draft.date)}`,
+      draft.category ? `Category: ${CATEGORY_LABELS[draft.category]}` : null,
+      draft.organization ? `Organization: ${organizationShortName(draft.organization)}` : null,
+      draft.description ? `Description: ${clip(draft.description, 60)}` : null,
+    ].filter(Boolean);
+
+    await this.client.sendMessage(to, {
+      type: 'buttons',
+      header: 'Leave this task?',
+      text:
+        `${where} If you leave now, what you've entered will be lost:\n\n` +
+        `${saved.join('\n')}\n\n` +
+        'Tap *Keep Going* to carry on where you left off.',
+      footer: 'Nothing is saved until you tap Save Task',
+      buttons: LEAVE_BUTTONS,
+    });
+  }
+
+  /** Re-sends the prompt for whichever step the session is on (after Keep Going or Back). */
+  private async renderStep(to: string, user: User, session: Session): Promise<void> {
+    const data = session.data;
+    switch (session.flow) {
+      case 'task_add_date':
+        await this.sendDatePicker(to, user, data.repeat === '1' ? 'Repeat Last Task' : ADD_HEADER);
+        return;
+      case 'task_add_vertical':
+        await this.sendVerticalPicker(to, Number(data.verticalPage ?? '0'));
+        return;
+      case 'task_add_category':
+        await this.sendCategoryPicker(to, data.vertical as TaskVertical, Number(data.categoryPage ?? '0'));
+        return;
+      case 'task_add_organization':
+        await this.sendOrganizationPicker(to, user, {
+          header: ADD_HEADER,
+          text: '*Which organization is this for?*',
+          footer: stepFooter(STEP.organization, 'Organization'),
+        });
+        return;
+      case 'task_add_description':
+        await this.sendDescriptionPrompt(
+          to,
+          data.repeat === '1' ? 'Repeat Last Task' : ADD_HEADER,
+          data.description ? `Your answer so far:\n_${clip(data.description, 300)}_\n\nType it again, changed as needed.\n\n` : ''
+        );
+        return;
+      case 'task_add_project':
+        await this.sendProjectPrompt(to, data.lastProject ?? '');
+        return;
+      case 'task_add_status':
+        await this.sendStatusStep(to);
+        return;
+      case 'task_add_percent':
+        await this.sendPercentStep(to, data.status as TaskStatus);
+        return;
+      case 'task_add_hours':
+        await this.sendAddHoursSlider(to);
+        return;
+      case 'task_add_attachment':
+        await this.sendAttachmentStep(to, attachmentsFromSession(data).length);
+        return;
+      case 'task_add_confirm':
+        await this.showAddConfirm(to, session);
+        return;
+      default:
+        await this.showMainMenu(to, user);
+    }
+  }
+
+  /**
+   * Back: one step earlier, keeping every answer given so far - a stray tap
+   * costs one tap to undo, never the whole draft. From the very first step,
+   * Back simply returns to the menu, as nothing has been entered yet.
+   */
+  private async stepBack(to: string, user: User, session: Session): Promise<void> {
+    const { flow, data } = session;
+    const repeat = data.repeat === '1';
+
+    // Update Task: back out one screen at a time, to the menu at most.
+    if (flow === 'task_update_pick') {
+      await this.showMainMenu(to, user);
+      return;
+    }
+    if (flow === 'task_update_field') {
+      await this.startUpdateTask(to, user);
+      return;
+    }
+    if (flow.startsWith('task_update_')) {
+      await this.sessions.setFlow(to, 'task_update_field');
+      if (!data.updateTaskId || !(await this.sendUpdateFieldPicker(to, user, data.updateTaskId))) await this.showMainMenu(to, user);
+      return;
+    }
+
+    const previous: Partial<Record<FlowStep, FlowStep>> = {
+      task_add_vertical: 'task_add_date',
+      task_add_category: 'task_add_vertical',
+      task_add_organization: repeat ? 'task_add_date' : 'task_add_category',
+      task_add_description: repeat ? 'task_add_date' : 'task_add_organization',
+      task_add_project: 'task_add_description',
+      task_add_status: 'task_add_project',
+      task_add_percent: 'task_add_status',
+      task_add_hours: statusNeedsProgress(data.status as TaskStatus) ? 'task_add_percent' : 'task_add_status',
+      task_add_attachment: 'task_add_hours',
+      task_add_confirm: 'task_add_attachment',
+    };
+
+    const target = previous[flow];
+    if (!target) {
+      await this.showMainMenu(to, user);
+      return;
+    }
+    await this.sessions.setFlow(to, target);
+    await this.renderStep(to, user, { flow: target, data });
+  }
+
   // ── Multi-step flows ─────────────────────────────────────────────────────
 
   private async handleActiveFlow(
@@ -604,8 +761,26 @@ export class WhatsAppBotService {
     normalized: string,
     session: Session
   ): Promise<void> {
-    if (normalized === 'back' || normalized === 'cancel' || normalized === 'main_menu') {
-      await this.showMainMenu(to, user);
+    // A "Leave this task?" prompt is showing. Anything other than an explicit
+    // Discard keeps the draft: Keep Going re-shows the current step, and any
+    // other reply is taken as the answer to that step, as if never asked.
+    if (session.data.leave === '1') {
+      const target = session.data.leaveTo;
+      session = { ...session, data: { ...session.data, leave: '', leaveTo: '' } };
+      await this.sessions.advance(to, session.flow, { leave: '', leaveTo: '' });
+      if (input === 'leave_discard') {
+        if (target === 'help') await this.showHelp(to, user);
+        else await this.showMainMenu(to, user, 'Task discarded. Nothing was saved.');
+        return;
+      }
+      if (input === 'leave_keep') {
+        await this.renderStep(to, user, session);
+        return;
+      }
+    }
+
+    if (normalized === 'back' || input === 'nav_back') {
+      await this.stepBack(to, user, session);
       return;
     }
 
@@ -918,7 +1093,7 @@ export class WhatsAppBotService {
         'Type a sentence or two, as you would in your daily report.\n\n' +
         '_For example: Configured VLANs on the core switch at the Westlands branch._',
       footer: stepFooter(STEP.description, 'Description'),
-      buttons: [{ id: 'main_menu', title: 'Cancel' }],
+      buttons: [STEP_BACK_BUTTON],
     });
   }
 
@@ -971,7 +1146,7 @@ export class WhatsAppBotService {
         header: ADD_HEADER,
         text: 'A little more detail, please. The description needs at least 5 characters.',
         footer: stepFooter(STEP.description, 'Description'),
-        buttons: [{ id: 'main_menu', title: 'Cancel' }],
+        buttons: [STEP_BACK_BUTTON],
       });
       return;
     }
@@ -990,7 +1165,7 @@ export class WhatsAppBotService {
   private async sendProjectPrompt(to: string, lastProject: string): Promise<void> {
     const buttons: ReplyButton[] = [];
     if (lastProject) buttons.push({ id: 'proj_last', title: 'Same as Last' });
-    buttons.push({ id: 'proj_skip', title: 'Skip' });
+    buttons.push({ id: 'proj_skip', title: 'Skip' }, STEP_BACK_BUTTON);
 
     await this.client.sendMessage(to, {
       type: 'buttons',
@@ -1009,31 +1184,35 @@ export class WhatsAppBotService {
     else if (input !== 'proj_skip' && normalized !== 'skip') customerProject = input;
 
     await this.sessions.advance(to, 'task_add_status', { customerProject });
+    await this.sendStatusStep(to);
+  }
+
+  private async sendStatusStep(to: string): Promise<void> {
     await this.sendStatusPicker(to, {
       header: ADD_HEADER,
-      text: '*Where does it stand?*\n\nChoose the current status.',
+      text: '*Where does it stand?*\n\nChoose the current status. Type *back* to change the project.',
       footer: stepFooter(STEP.status, 'Status'),
+    });
+  }
+
+  private async sendPercentStep(to: string, status: TaskStatus): Promise<void> {
+    await this.sendPercentSlider(to, {
+      header: ADD_HEADER,
+      text: `*How far along is it?*\n\nStatus: ${STATUS_LABELS[status]}\n\nSlide to the closest mark, or choose *Exact value*.`,
+      footer: stepFooter(STEP.status, 'Progress'),
     });
   }
 
   private async stepAddStatus(to: string, input: string): Promise<void> {
     const status = resolveFromId(input, 'status', STATUS_VALUES);
     if (!status) {
-      await this.sendStatusPicker(to, {
-        header: ADD_HEADER,
-        text: '*Where does it stand?*\n\nChoose the current status from the list.',
-        footer: stepFooter(STEP.status, 'Status'),
-      });
+      await this.sendStatusStep(to);
       return;
     }
 
     if (statusNeedsProgress(status)) {
       await this.sessions.advance(to, 'task_add_percent', { status });
-      await this.sendPercentSlider(to, {
-        header: ADD_HEADER,
-        text: `*How far along is it?*\n\nStatus: ${STATUS_LABELS[status]}\n\nSlide to the closest mark, or choose *Exact value*.`,
-        footer: stepFooter(STEP.status, 'Progress'),
-      });
+      await this.sendPercentStep(to, status);
       return;
     }
 
@@ -1089,16 +1268,25 @@ export class WhatsAppBotService {
     }
 
     await this.sessions.advance(to, 'task_add_attachment', hours != null ? { hoursSpent: String(hours) } : {});
+    await this.sendAttachmentStep(to, 0);
+  }
+
+  private async sendAttachmentStep(to: string, count: number): Promise<void> {
     await this.client.sendMessage(to, {
       type: 'buttons',
       header: ADD_HEADER,
       text:
         '*Proof of work (optional)*\n\n' +
-        `Send up to ${MAX_ATTACHMENTS_PER_TASK} files, one at a time: screenshots, photos, PDFs or Word documents (.docx), up to ${MAX_ATTACHMENT_MB} MB each. ` +
-        'They will be attached to this task.\n\n' +
+        (count > 0
+          ? `${plural(count, 'file')} attached so far. Send another, or continue to review.\n\n`
+          : `Send up to ${MAX_ATTACHMENTS_PER_TASK} files, one at a time: screenshots, photos, PDFs or Word documents (.docx), up to ${MAX_ATTACHMENT_MB} MB each. ` +
+            'They will be attached to this task.\n\n') +
         '_To send a file, tap the attachment icon, then Document._',
       footer: 'Almost done · You will review everything next',
-      buttons: [{ id: 'att_skip', title: 'Skip to Review' }],
+      buttons: [
+        { id: count > 0 ? 'att_done' : 'att_skip', title: count > 0 ? 'Continue to Review' : 'Skip to Review' },
+        STEP_BACK_BUTTON,
+      ],
     });
   }
 
@@ -1107,16 +1295,7 @@ export class WhatsAppBotService {
       await this.showAddConfirm(to, session);
       return;
     }
-    const count = attachmentsFromSession(session.data).length;
-    await this.client.sendMessage(to, {
-      type: 'buttons',
-      header: ADD_HEADER,
-      text:
-        count > 0
-          ? `${plural(count, 'file')} attached so far. Send another photo, PDF or Word document, or continue to review.`
-          : 'Send a photo, PDF or Word document as proof of work, or continue without one.',
-      buttons: [{ id: count > 0 ? 'att_done' : 'att_skip', title: count > 0 ? 'Continue to Review' : 'Skip to Review' }],
-    });
+    await this.sendAttachmentStep(to, attachmentsFromSession(session.data).length);
   }
 
   private async stepAddAttachmentMedia(to: string, media: IncomingMedia): Promise<void> {
@@ -1199,12 +1378,9 @@ export class WhatsAppBotService {
       await this.completeAddTask(to, user, session);
       return;
     }
-    if (normalized === 'confirm_restart') {
-      await this.startAddTask(to, user);
-      return;
-    }
     if (normalized === 'confirm_no') {
-      await this.showMainMenu(to, user, 'Task discarded. Nothing was saved.');
+      // Discard is one tap from Save, so it asks before throwing work away.
+      await this.askLeaveConfirm(to, session, 'menu');
       return;
     }
     await this.showAddConfirm(to, session);

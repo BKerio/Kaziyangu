@@ -86,10 +86,19 @@ export function dayNudge(s: MenuSnapshot): string {
 
 export const BACK_BUTTON: ReplyButton = { id: 'main_menu', title: 'Main Menu' };
 
+/** Non-destructive "previous step" - replaces Cancel on wizard steps, so a stray tap never loses work. */
+export const STEP_BACK_BUTTON: ReplyButton = { id: 'nav_back', title: 'Back' };
+
+// Safe action first, destructive last - and Discard asks for confirmation.
 export const REVIEW_BUTTONS: ReplyButton[] = [
   { id: 'confirm_yes', title: 'Save Task' },
-  { id: 'confirm_restart', title: 'Start Over' },
+  STEP_BACK_BUTTON,
   { id: 'confirm_no', title: 'Discard' },
+];
+
+export const LEAVE_BUTTONS: ReplyButton[] = [
+  { id: 'leave_keep', title: 'Keep Going' },
+  { id: 'leave_discard', title: 'Discard Task' },
 ];
 
 export function helpText(portalUrl: string): string {
@@ -101,7 +110,7 @@ export function helpText(portalUrl: string): string {
     '*Update Task*\nChange the status, progress, time, organization or blockers on anything logged today.\n\n' +
     '*Repeat Last Task*\nStarts a new task with the same vertical, category, organization and project as your last one, so you only describe the work.\n\n' +
     "*Today's Tasks* and *This Week*\nSee what you've logged, with totals.\n\n" +
-    'Type *menu* at any time to start again, or *cancel* to leave a step.\n\n' +
+    'While logging, tap *Back* or type *back* to change your previous answer. Type *menu* to leave; you will be asked before anything is discarded.\n\n' +
     `For the full editor, visit ${portalUrl}`
   );
 }

@@ -218,14 +218,25 @@ h1, h2 { font-family: var(--font-display); }
 .tf-head-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; background: var(--red); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--red) 30%, transparent); }
 .tf-head-title { font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); margin: 0; }
 .tf-head-sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
-.tf-steps { display: flex; gap: 4px; margin-top: 16px; overflow-x: auto; scrollbar-width: none; }
+/* Section tracker: a section turns green once its requirements are met. */
+.tf-steps { --tf-done: var(--color-status-success, #169A5B); display: flex; gap: 6px; margin-top: 18px; overflow-x: auto; scrollbar-width: none; }
 .tf-steps::-webkit-scrollbar { display: none; }
-.tf-step { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; padding: 9px 10px 11px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+.tf-step { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; padding: 10px 12px 13px; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; transition: color .15s, border-color .15s; }
 .tf-step:hover { color: var(--ink); }
-.tf-step.active { color: var(--ink); border-bottom-color: var(--red); }
-.tf-step-dot { width: 19px; height: 19px; border-radius: 99px; display: grid; place-items: center; font-size: 10.5px; font-weight: 700; background: var(--surface-3); color: var(--muted); transition: background .15s, color .15s; }
+.tf-step.active { color: var(--ink); border-bottom-color: var(--ink); }
+.tf-step.done { color: var(--tf-done); }
+.tf-step.done.active { border-bottom-color: var(--tf-done); }
+.tf-step-dot { width: 26px; height: 26px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-3); color: var(--muted); transition: background .2s, color .2s, transform .2s; }
 .tf-step.active .tf-step-dot { background: var(--ink); color: var(--surface); }
-.tf-step.done .tf-step-dot { background: var(--red); color: #fff; }
+.tf-step.done .tf-step-dot { background: var(--tf-done); color: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tf-done) 16%, transparent); }
+@keyframes tf-step-pop { 0% { transform: scale(.6); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+.tf-step.done .tf-step-dot svg { animation: tf-step-pop .3s ease-out; }
+/* Overall completion line under the tracker, filling green section by section. */
+.tf-progress { display: flex; align-items: center; gap: 10px; margin: 0 -22px; padding: 0 22px 12px; }
+.tf-progress-track { flex: 1; height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.tf-progress-fill { height: 100%; border-radius: 99px; background: var(--color-status-success, #169A5B); transition: width .35s cubic-bezier(.4,0,.2,1); }
+.tf-progress-label { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tf-progress-label.all { color: var(--color-status-success, #169A5B); }
 .tf-body { overflow-y: auto; padding: 6px 22px 22px; flex: 1; scroll-behavior: smooth; }
 .tf-section { padding: 18px 0 20px; border-bottom: 1px dashed var(--border); scroll-margin-top: 8px; }
 .tf-section:last-child { border-bottom: 0; padding-bottom: 4px; }
