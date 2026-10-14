@@ -32,7 +32,7 @@ export function mainMenuSections(s: MenuSnapshot): ListSection[] {
   const quick: ListSection = {
     title: 'Quick actions',
     rows: [
-      { id: 'task_add', title: 'Log New Task', description: 'Seven quick steps, about a minute' },
+      { id: 'task_add', title: 'Log New Task', description: 'Eight quick steps, about a minute' },
       ...(s.lastTaskLabel
         ? [{ id: 'task_repeat', title: 'Repeat Last Task', description: clip(`Same setup as ${s.lastTaskLabel}`, 72) }]
         : []),
@@ -95,7 +95,8 @@ export const REVIEW_BUTTONS: ReplyButton[] = [
 export function helpText(portalUrl: string): string {
   return (
     '*How the Task Assistant works*\n\n' +
-    '*Log New Task*\nSeven quick steps: vertical, category, organization, description, project, status and time. ' +
+    '*Log New Task*\nEight quick steps: day, vertical, category, organization, description, project, status and time. ' +
+    'Pick the day from a calendar: today, yesterday, tomorrow or any other date. ' +
     'Pick from the lists, and use the sliders to set time and progress in one tap.\n\n' +
     '*Update Task*\nChange the status, progress, time, organization or blockers on anything logged today.\n\n' +
     '*Repeat Last Task*\nStarts a new task with the same vertical, category, organization and project as your last one, so you only describe the work.\n\n' +

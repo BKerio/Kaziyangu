@@ -379,7 +379,11 @@ function TaskFormModal({ initial, assignableUsers, onClose, onSubmit, submitting
                   <input id="task-date" className="input" type="date" {...register('date')} style={{ paddingLeft: 40 }} />
                   <CalendarDays size={16} />
                 </div>
-                {[{ label: 'Today', value: today }, { label: 'Yesterday', value: shiftDate(today, -1) }].map((d) => (
+                {[
+                  { label: 'Yesterday', value: shiftDate(today, -1) },
+                  { label: 'Today', value: today },
+                  { label: 'Tomorrow', value: shiftDate(today, 1) },
+                ].map((d) => (
                   <button
                     key={d.label}
                     type="button"

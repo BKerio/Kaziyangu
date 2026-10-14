@@ -35,9 +35,21 @@ export function clip(text: string, max: number): string {
 
 // ── Step tracker ────────────────────────────────────────────────────────────
 
-export const TOTAL_STEPS = 7;
+/** Position of each "Log New Task" step - one place to renumber when a step is added. */
+export const STEP = {
+  date: 1,
+  vertical: 2,
+  category: 3,
+  organization: 4,
+  description: 5,
+  project: 6,
+  status: 7,
+  time: 8,
+} as const;
 
-/** Footer for each "Log New Task" step, e.g. "■■■□□□□  Step 3 of 7 · Organization". */
+export const TOTAL_STEPS = 8;
+
+/** Footer for each "Log New Task" step, e.g. "■■■■□□□□  Step 4 of 8 · Organization". */
 export function stepFooter(step: number, label: string): string {
   return `${gauge(step / TOTAL_STEPS, TOTAL_STEPS)}  Step ${step} of ${TOTAL_STEPS} · ${label}`;
 }
@@ -254,6 +266,152 @@ export function pagedSections<T extends string>(
   if (nav.length > 0) sections.push({ title: 'Browse', rows: nav });
 
   return sections;
+}
+
+// ── Dates and the calendar picker ───────────────────────────────────────────
+// Dates are plain "YYYY-MM-DD" strings for the Nairobi calendar day - the day
+// a task is logged against - so no timezone drift creeps in near midnight.
+
+const NAIROBI = 'Africa/Nairobi';
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/** Today's date in Nairobi, as YYYY-MM-DD. */
+export function nairobiToday(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: NAIROBI, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+}
+
+function isoToUtcNoon(iso: string): Date {
+  return new Date(`${iso}T12:00:00Z`);
+}
+
+export function addDays(iso: string, days: number): string {
+  const d = isoToUtcNoon(iso);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Whole days from `from` to `to` (negative when `to` is earlier). */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((isoToUtcNoon(to).getTime() - isoToUtcNoon(from).getTime()) / 86_400_000);
+}
+
+/** "Tue 14 Oct" */
+export function fmtDayShort(iso: string): string {
+  return isoToUtcNoon(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+/** "Tuesday 14 October" */
+export function fmtDayLong(iso: string): string {
+  return isoToUtcNoon(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+}
+
+/** "today", "yesterday", "tomorrow", or null for any other day. */
+export function relativeDayName(iso: string, today: string): string | null {
+  const diff = daysBetween(today, iso);
+  if (diff === 0) return 'today';
+  if (diff === -1) return 'yesterday';
+  if (diff === 1) return 'tomorrow';
+  return null;
+}
+
+/**
+ * A month grid in monospace, Monday first. Today is bracketed and days that
+ * already have tasks carry a dot, e.g.
+ *
+ *     October 2026
+ *     Mo  Tu  We  Th  Fr  Sa  Su
+ *               1   2   3   4•
+ *     ...
+ *     12• 13•[14] 15  16  17  18
+ */
+export function monthCalendar(today: string, loggedDays: Set<string>): string {
+  const [year, month] = today.split('-').map(Number);
+  const first = `${year}-${String(month).padStart(2, '0')}-01`;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const lead = (isoToUtcNoon(first).getUTCDay() + 6) % 7; // Monday = 0
+
+  const cell = (day: number) => {
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dd = String(day).padStart(2, ' ');
+    if (iso === today) return `[${dd}]`;
+    return ` ${dd}${loggedDays.has(iso) ? '•' : ' '}`;
+  };
+
+  const cells = [...Array(lead).fill('    '), ...Array.from({ length: daysInMonth }, (_, i) => cell(i + 1))];
+  const weeks: string[] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7).join('').replace(/\s+$/, ''));
+
+  const title = isoToUtcNoon(first).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return ['```', title, ' Mo  Tu  We  Th  Fr  Sa  Su', ...weeks, '```'].join('\n');
+}
+
+export const DATE_OTHER_ID = 'date_other';
+
+/** The picker rows: today, yesterday, tomorrow, then the five days before yesterday, each with its task count. */
+export function dateRows(today: string, counts: Map<string, number>): ListSection[] {
+  const describe = (iso: string) => {
+    const n = counts.get(iso) ?? 0;
+    return `${fmtDayLong(iso)} · ${n === 0 ? 'nothing logged yet' : `${n} task${n === 1 ? '' : 's'} logged`}`;
+  };
+  const quick = [
+    { iso: today, title: 'Today' },
+    { iso: addDays(today, -1), title: 'Yesterday' },
+    { iso: addDays(today, 1), title: 'Tomorrow' },
+  ];
+  const earlier = [2, 3, 4, 5, 6].map((n) => addDays(today, -n));
+
+  return [
+    { title: 'Quick picks', rows: quick.map((q) => ({ id: `date_${q.iso}`, title: q.title, description: describe(q.iso) })) },
+    { title: 'Earlier days', rows: earlier.map((iso) => ({ id: `date_${iso}`, title: fmtDayShort(iso), description: describe(iso) })) },
+    { title: 'Any other day', rows: [{ id: DATE_OTHER_ID, title: 'Other date', description: 'Type it, for example 05/10/2026 or 5 Oct' }] },
+  ];
+}
+
+/**
+ * A date from a picker row id (date_2026-10-14) or typed text: today /
+ * yesterday / tomorrow, 14/10, 14/10/2026, 14-10-2026, 2026-10-14, 14 Oct,
+ * Oct 14 or 14 October 2026. Day-first, as dates are written in Kenya.
+ * Null when it isn't a real calendar date.
+ */
+export function parseDateInput(input: string, today: string): string | null {
+  const text = input.trim().toLowerCase().replace(/(\d)(st|nd|rd|th)\b/g, '$1').replace(/,/g, ' ').replace(/\s+/g, ' ');
+  const [thisYear] = today.split('-').map(Number);
+
+  const words: Record<string, number> = { today: 0, yesterday: -1, tomorrow: 1 };
+  if (text in words) return addDays(today, words[text]);
+
+  let y: number | undefined;
+  let m: number | undefined;
+  let d: number | undefined;
+
+  const fromRow = /^date_(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  const isoLike = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
+  const numeric = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?$/.exec(text);
+  const dayMonth = /^(\d{1,2}) ([a-z]{3,9})(?: (\d{4}))?$/.exec(text);
+  const monthDay = /^([a-z]{3,9}) (\d{1,2})(?: (\d{4}))?$/.exec(text);
+  const monthIndex = (name: string) => MONTHS.findIndex((mn) => mn.startsWith(name)) + 1;
+
+  if (fromRow) [y, m, d] = [Number(fromRow[1]), Number(fromRow[2]), Number(fromRow[3])];
+  else if (isoLike) [y, m, d] = [Number(isoLike[1]), Number(isoLike[2]), Number(isoLike[3])];
+  else if (numeric) {
+    d = Number(numeric[1]);
+    m = Number(numeric[2]);
+    y = numeric[3] ? Number(numeric[3].length === 2 ? `20${numeric[3]}` : numeric[3]) : thisYear;
+  } else if (dayMonth && monthIndex(dayMonth[2]) > 0) {
+    d = Number(dayMonth[1]);
+    m = monthIndex(dayMonth[2]);
+    y = dayMonth[3] ? Number(dayMonth[3]) : thisYear;
+  } else if (monthDay && monthIndex(monthDay[1]) > 0) {
+    m = monthIndex(monthDay[1]);
+    d = Number(monthDay[2]);
+    y = monthDay[3] ? Number(monthDay[3]) : thisYear;
+  }
+
+  if (!y || !m || !d) return null;
+  const candidate = new Date(Date.UTC(y, m - 1, d));
+  // Rejects 31/02 and similar, which Date would otherwise roll into the next month.
+  if (candidate.getUTCFullYear() !== y || candidate.getUTCMonth() !== m - 1 || candidate.getUTCDate() !== d) return null;
+  return candidate.toISOString().slice(0, 10);
 }
 
 /** Time-of-day greeting in Nairobi time, where the team works. */

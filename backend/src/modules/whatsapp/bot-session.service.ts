@@ -2,6 +2,7 @@ import { AppContext } from '../../context.js';
 
 export type FlowStep =
   | 'idle'
+  | 'task_add_date'
   | 'task_add_vertical'
   | 'task_add_category'
   | 'task_add_organization'

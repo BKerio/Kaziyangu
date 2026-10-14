@@ -51,6 +51,17 @@ import {
   statusRow,
   stepFooter,
   verticalRow,
+  STEP,
+  DATE_OTHER_ID,
+  addDays,
+  dateRows,
+  daysBetween,
+  fmtDayLong,
+  fmtDayShort,
+  monthCalendar,
+  nairobiToday,
+  parseDateInput,
+  relativeDayName,
 } from './ui.js';
 import type { IncomingMessage, ListSection, ReplyButton, WebhookContact, WebhookPayload } from './whatsapp.types.js';
 
@@ -116,6 +127,8 @@ const CHUNK_LIMIT = 3500;
 const BODY_LIMIT = 1024;
 
 interface Draft {
+  /** YYYY-MM-DD, the Nairobi day the task is logged against. */
+  date: string;
   vertical?: TaskVertical;
   category?: TaskCategory;
   organization?: Organization;
@@ -194,6 +207,7 @@ function defaultPercentForStatus(status: TaskStatus): number {
 
 function draftFromSession(data: Record<string, string>): Draft {
   return {
+    date: data.date || todayDateString(),
     vertical: (data.vertical as TaskVertical) || undefined,
     category: (data.category as TaskCategory) || undefined,
     organization: (data.organization as Organization) || undefined,
@@ -205,21 +219,22 @@ function draftFromSession(data: Record<string, string>): Draft {
   };
 }
 
+/** Today in Nairobi - not UTC, which is still "yesterday" until 3 am local time. */
 function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return nairobiToday();
 }
 
-/** Monday-Sunday range containing today, as YYYY-MM-DD strings. */
+/** Monday-Sunday range containing today (Nairobi), as YYYY-MM-DD strings. */
 function weekRangeStrings(): { from: string; to: string } {
-  const now = new Date();
-  const day = now.getDay(); // 0 = Sunday
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() + (day === 0 ? -6 : 1 - day));
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return { from: monday.toISOString().slice(0, 10), to: sunday.toISOString().slice(0, 10) };
+  const today = todayDateString();
+  const weekday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0
+  const from = addDays(today, -weekday);
+  return { from, to: addDays(from, 6) };
 }
+
+// How far back or ahead a task's date may be set from WhatsApp.
+const MAX_DAYS_BACK = 90;
+const MAX_DAYS_AHEAD = 30;
 
 /** Splits blocks of text into messages that each stay under the text-message size limit. */
 function chunkBlocks(header: string, blocks: string[]): string[] {
@@ -561,7 +576,7 @@ export class WhatsAppBotService {
         await this.showWeekTasks(to, user);
         return;
       case 'task_add':
-        await this.startAddTask(to);
+        await this.startAddTask(to, user);
         return;
       case 'task_repeat':
         await this.startRepeatTask(to, user);
@@ -595,6 +610,9 @@ export class WhatsAppBotService {
     }
 
     switch (session.flow) {
+      case 'task_add_date':
+        await this.stepAddDate(to, user, input, session);
+        return;
       case 'task_add_vertical':
         await this.stepAddVertical(to, input, session);
         return;
@@ -653,18 +671,109 @@ export class WhatsAppBotService {
 
   // ── Log New Task ─────────────────────────────────────────────────────────
 
-  private async startAddTask(to: string): Promise<void> {
+  private async startAddTask(to: string, user: User): Promise<void> {
     await this.sessions.reset(to);
-    await this.sessions.advance(to, 'task_add_vertical', { verticalPage: '0' });
-    await this.sendVerticalPicker(to, 0);
+    await this.sessions.advance(to, 'task_add_date');
+    await this.sendDatePicker(to, user, ADD_HEADER);
   }
 
-  private async sendVerticalPicker(to: string, page: number): Promise<void> {
+  /**
+   * Step 1: which day the task belongs to. The body draws this month as a
+   * small calendar (today bracketed, logged days dotted); the list offers
+   * Today / Yesterday / Tomorrow, the rest of the past week with each day's
+   * task count, and "Other date" for typing any day.
+   */
+  private async sendDatePicker(to: string, user: User, header: string, preface = ''): Promise<void> {
+    const today = todayDateString();
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const from = addDays(today, -6) < monthStart ? addDays(today, -6) : monthStart;
+    const { data: recent } = await this.tasks.getTasks(this.actorFor(user), {
+      userId: user.id,
+      from,
+      to: addDays(today, 1),
+      page: 1,
+      limit: 500,
+    });
+
+    const counts = new Map<string, number>();
+    for (const t of recent) {
+      const day = t.date.toISOString().slice(0, 10);
+      counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+
+    await this.client.sendMessage(to, {
+      type: 'list',
+      header,
+      text:
+        preface +
+        '*Which day is this task for?*\n\n' +
+        `${monthCalendar(today, new Set(counts.keys()))}\n` +
+        '_[ ] today   • already has tasks_',
+      footer: stepFooter(STEP.date, 'Date'),
+      buttonLabel: 'Choose Day',
+      sections: dateRows(today, counts),
+    });
+  }
+
+  private async stepAddDate(to: string, user: User, input: string, session: Session): Promise<void> {
+    if (input === DATE_OTHER_ID) {
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: 'Type the date, day first. For example *05/10/2026*, *5 Oct* or *yesterday*.',
+      });
+      return;
+    }
+
+    const today = todayDateString();
+    const date = parseDateInput(input, today);
+    const offset = date ? daysBetween(today, date) : 0;
+    if (!date || offset < -MAX_DAYS_BACK || offset > MAX_DAYS_AHEAD) {
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: date
+          ? `Pick a day within the last ${MAX_DAYS_BACK} days or the next ${MAX_DAYS_AHEAD}. Older entries can be added from the web portal.`
+          : "That date wasn't recognised. Try *05/10/2026*, *5 Oct* or *yesterday*, or choose from the list.",
+      });
+      return;
+    }
+
+    const when = relativeDayName(date, today);
+    const dayLine = `_${fmtDayLong(date)}${when ? ` (${when})` : ''}_\n\n`;
+
+    // Repeat Last Task arrives here with its setup already filled in.
+    if (session.data.repeat === '1' && session.data.vertical && session.data.category) {
+      const vertical = session.data.vertical as TaskVertical;
+      const category = session.data.category as TaskCategory;
+      if (!session.data.organization) {
+        await this.sessions.advance(to, 'task_add_organization', { date });
+        await this.sendOrganizationPicker(to, user, {
+          header: 'Repeat Last Task',
+          text: `${dayLine}*${CATEGORY_LABELS[category]}* · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}\n\n*Which organization is this for?*`,
+          footer: stepFooter(STEP.organization, 'Organization'),
+        });
+        return;
+      }
+      await this.sessions.advance(to, 'task_add_description', { date });
+      await this.sendDescriptionPrompt(
+        to,
+        'Repeat Last Task',
+        dayLine +
+          `${CATEGORY_LABELS[category]} · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}\n` +
+          `${ORGANIZATION_LABELS[session.data.organization as Organization]}\n\n`
+      );
+      return;
+    }
+
+    await this.sessions.advance(to, 'task_add_vertical', { date, verticalPage: '0' });
+    await this.sendVerticalPicker(to, 0, dayLine);
+  }
+
+  private async sendVerticalPicker(to: string, page: number, preface = ''): Promise<void> {
     await this.client.sendMessage(to, {
       type: 'list',
       header: ADD_HEADER,
-      text: '*Which area of the business was this?*\n\nChoose the vertical this task belongs to.',
-      footer: stepFooter(1, 'Vertical'),
+      text: `${preface}*Which area of the business was this?*\n\nChoose the vertical this task belongs to.`,
+      footer: stepFooter(STEP.vertical, 'Vertical'),
       buttonLabel: 'Choose Vertical',
       sections: pagedSections(VERTICAL_VALUES, page, 'vert', 'Verticals', verticalRow),
     });
@@ -675,7 +784,7 @@ export class WhatsAppBotService {
       type: 'list',
       header: ADD_HEADER,
       text: `*What kind of work was it?*\n\nVertical: ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}`,
-      footer: stepFooter(2, 'Category'),
+      footer: stepFooter(STEP.category, 'Category'),
       buttonLabel: 'Choose Category',
       sections: pagedSections(CATEGORY_VALUES, page, 'cat', 'Categories', categoryRow),
     });
@@ -781,7 +890,7 @@ export class WhatsAppBotService {
     await this.sendOrganizationPicker(to, user, {
       header: ADD_HEADER,
       text: `*Which organization is this for?*\n\n${CATEGORY_LABELS[category]} · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}`,
-      footer: stepFooter(3, 'Organization'),
+      footer: stepFooter(STEP.organization, 'Organization'),
     });
   }
 
@@ -791,7 +900,7 @@ export class WhatsAppBotService {
       await this.sendOrganizationPicker(to, user, {
         header: ADD_HEADER,
         text: '*Which organization is this for?*\n\nChoose one from the list.',
-        footer: stepFooter(3, 'Organization'),
+        footer: stepFooter(STEP.organization, 'Organization'),
       });
       return;
     }
@@ -808,7 +917,7 @@ export class WhatsAppBotService {
         '*Describe what you worked on*\n\n' +
         'Type a sentence or two, as you would in your daily report.\n\n' +
         '_For example: Configured VLANs on the core switch at the Westlands branch._',
-      footer: stepFooter(4, 'Description'),
+      footer: stepFooter(STEP.description, 'Description'),
       buttons: [{ id: 'main_menu', title: 'Cancel' }],
     });
   }
@@ -826,33 +935,30 @@ export class WhatsAppBotService {
       select: { vertical: true, category: true, organization: true, customerProject: true },
     });
     if (!last) {
-      await this.startAddTask(to);
+      await this.startAddTask(to, user);
       return;
     }
 
     await this.sessions.reset(to);
     const vertical = last.vertical as TaskVertical;
     const category = last.category as TaskCategory;
+    const organization = (last.organization as Organization | null) ?? undefined;
 
-    if (!last.organization) {
-      // Older tasks predate organizations - ask for it, then carry on as normal.
-      await this.sessions.advance(to, 'task_add_organization', { vertical, category });
-      await this.sendOrganizationPicker(to, user, {
-        header: 'Repeat Last Task',
-        text: `*${CATEGORY_LABELS[category]}* · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}\n\n*Which organization is this for?*`,
-        footer: stepFooter(3, 'Organization'),
-      });
-      return;
-    }
-
-    const organization = last.organization as Organization;
-    await this.sessions.advance(to, 'task_add_description', { vertical, category, organization });
-    await this.sendDescriptionPrompt(
+    // Pick the day first, like a new task; stepAddDate then skips straight to
+    // the description (or asks for an organization on older tasks without one).
+    await this.sessions.advance(to, 'task_add_date', {
+      repeat: '1',
+      vertical,
+      category,
+      ...(organization ? { organization } : {}),
+    });
+    await this.sendDatePicker(
       to,
+      user,
       'Repeat Last Task',
       '*Same setup as your last task*\n' +
-        `${CATEGORY_LABELS[category]} · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}\n` +
-        `${ORGANIZATION_LABELS[organization]}` +
+        `${CATEGORY_LABELS[category]} · ${VERTICAL_LABELS[vertical].replace(/^\d+\.\s*/, '')}` +
+        (organization ? `\n${ORGANIZATION_LABELS[organization]}` : '') +
         (last.customerProject ? `\nProject: ${clip(last.customerProject, 80)}` : '') +
         '\n\n'
     );
@@ -864,7 +970,7 @@ export class WhatsAppBotService {
         type: 'buttons',
         header: ADD_HEADER,
         text: 'A little more detail, please. The description needs at least 5 characters.',
-        footer: stepFooter(4, 'Description'),
+        footer: stepFooter(STEP.description, 'Description'),
         buttons: [{ id: 'main_menu', title: 'Cancel' }],
       });
       return;
@@ -892,7 +998,7 @@ export class WhatsAppBotService {
       text:
         '*Customer or project*\n\nType the customer or project name.' +
         (lastProject ? `\n\nLast used: *${clip(lastProject, 120)}*` : ''),
-      footer: stepFooter(5, 'Customer / Project'),
+      footer: stepFooter(STEP.project, 'Customer / Project'),
       buttons,
     });
   }
@@ -906,7 +1012,7 @@ export class WhatsAppBotService {
     await this.sendStatusPicker(to, {
       header: ADD_HEADER,
       text: '*Where does it stand?*\n\nChoose the current status.',
-      footer: stepFooter(6, 'Status'),
+      footer: stepFooter(STEP.status, 'Status'),
     });
   }
 
@@ -916,7 +1022,7 @@ export class WhatsAppBotService {
       await this.sendStatusPicker(to, {
         header: ADD_HEADER,
         text: '*Where does it stand?*\n\nChoose the current status from the list.',
-        footer: stepFooter(6, 'Status'),
+        footer: stepFooter(STEP.status, 'Status'),
       });
       return;
     }
@@ -926,7 +1032,7 @@ export class WhatsAppBotService {
       await this.sendPercentSlider(to, {
         header: ADD_HEADER,
         text: `*How far along is it?*\n\nStatus: ${STATUS_LABELS[status]}\n\nSlide to the closest mark, or choose *Exact value*.`,
-        footer: stepFooter(6, 'Progress'),
+        footer: stepFooter(STEP.status, 'Progress'),
       });
       return;
     }
@@ -945,7 +1051,7 @@ export class WhatsAppBotService {
       await this.sendPercentSlider(to, {
         header: ADD_HEADER,
         text: 'That was not a percentage between 0 and 100. Choose a mark, or type a number such as *65*.',
-        footer: stepFooter(6, 'Progress'),
+        footer: stepFooter(STEP.status, 'Progress'),
       });
       return;
     }
@@ -959,7 +1065,7 @@ export class WhatsAppBotService {
       text:
         '*How much time did it take?*\n\n' +
         `Each bar is measured against an ${WORKDAY_HOURS}-hour day. Choose the closest mark, or *Exact time* to type it.`,
-      footer: stepFooter(7, 'Time spent'),
+      footer: stepFooter(STEP.time, 'Time spent'),
     });
   }
 
@@ -977,7 +1083,7 @@ export class WhatsAppBotService {
       await this.sendHoursSlider(to, {
         header: ADD_HEADER,
         text: 'That time was not recognised. Choose a mark, or type something like *2h 15m* (up to 24 hours).',
-        footer: stepFooter(7, 'Time spent'),
+        footer: stepFooter(STEP.time, 'Time spent'),
       });
       return;
     }
@@ -1075,12 +1181,14 @@ export class WhatsAppBotService {
       percentComplete: draft.percentComplete,
     });
     const evidence = attachmentCount > 0 ? `\nEvidence: ${plural(attachmentCount, 'file')}` : '';
+    const when = relativeDayName(draft.date, todayDateString());
+    const dateLine = `Date: *${fmtDayShort(draft.date)}*${when ? ` (${when})` : ''}\n`;
 
     await this.sessions.setFlow(to, 'task_add_confirm');
     await this.client.sendMessage(to, {
       type: 'buttons',
       header: 'Review Task',
-      text: `${card}${evidence}`,
+      text: `${dateLine}${card}${evidence}`,
       footer: 'Nothing is saved until you tap Save Task',
       buttons: REVIEW_BUTTONS,
     });
@@ -1092,7 +1200,7 @@ export class WhatsAppBotService {
       return;
     }
     if (normalized === 'confirm_restart') {
-      await this.startAddTask(to);
+      await this.startAddTask(to, user);
       return;
     }
     if (normalized === 'confirm_no') {
@@ -1107,7 +1215,7 @@ export class WhatsAppBotService {
 
     try {
       const task = await this.tasks.createTask(this.actorFor(user), {
-        date: todayDateString(),
+        date: draft.date,
         vertical: draft.vertical!,
         category: draft.category!,
         organization: draft.organization,
