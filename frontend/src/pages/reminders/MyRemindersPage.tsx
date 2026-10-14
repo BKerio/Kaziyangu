@@ -10,22 +10,30 @@ import { confirmDialog } from '@/lib/alert';
 import { fmtDate, fmtDateTime, NBO_TZ } from '@/lib/datetime';
 import ReminderFormModal, { ReminderFormValues } from '@/components/reminders/ReminderFormModal';
 
-const LEAD_MINUTES = 30;
-const INTERVAL_MINUTES = 10;
+// Cadence the server used before users could pick their own times.
+const LEGACY_LEAD_MINUTES = 30;
+const LEGACY_INTERVAL_MINUTES = 10;
+
+const CHANNEL_LABELS: Record<string, string> = { WHATSAPP: 'WhatsApp', EMAIL: 'Email', SMS: 'SMS' };
 
 function fmtClock(d: Date): string {
   return d.toLocaleTimeString('en-US', { timeZone: NBO_TZ, hour: 'numeric', minute: '2-digit' });
 }
 
-function reminderStatusLabel(reminder: TaskReminder): string {
-  if (reminder.status === 'DONE') return `Done · ${reminder.sentCount} sent`;
-  if (reminder.status === 'ACTIVE') return `Sent ${reminder.sentCount}/${reminder.repeatCount}`;
-  // SCHEDULED - show the upcoming fire times.
-  const due = new Date(reminder.dueAt);
-  const times = Array.from({ length: reminder.repeatCount }, (_, i) =>
-    fmtClock(new Date(due.getTime() - LEAD_MINUTES * 60_000 + i * INTERVAL_MINUTES * 60_000))
-  );
-  return `Scheduled · ${times.join(', ')}`;
+function reminderTimes(reminder: TaskReminder): Date[] {
+  if (reminder.remindAt?.length) return reminder.remindAt.map((t) => new Date(t));
+  const first = new Date(reminder.dueAt).getTime() - LEGACY_LEAD_MINUTES * 60_000;
+  return Array.from({ length: reminder.repeatCount }, (_, i) => new Date(first + i * LEGACY_INTERVAL_MINUTES * 60_000));
+}
+
+function reminderStatus(reminder: TaskReminder): { label: string; className: string } {
+  if (reminder.status === 'DONE') return { label: `Done · ${reminder.sentCount} sent`, className: 'pill pill-green' };
+  if (reminder.status === 'CANCELLED') return { label: 'Cancelled', className: 'pill' };
+  const next = reminder.nextRunAt ? fmtClock(new Date(reminder.nextRunAt)) : null;
+  if (reminder.status === 'ACTIVE') {
+    return { label: `Sent ${reminder.sentCount} of ${reminder.repeatCount}${next ? ` · next ${next}` : ''}`, className: 'pill pill-blue' };
+  }
+  return { label: `Scheduled · ${reminderTimes(reminder).map(fmtClock).join(', ')}`, className: 'pill pill-amber' };
 }
 
 function MyRemindersPage() {
@@ -105,7 +113,7 @@ function MyRemindersPage() {
         <p className="eyebrow">Stay on track</p>
         <h2 className="text-2xl font-bold mt-1" style={{ color: 'var(--ink)' }}>Task Reminders</h2>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          Pick a due time for any task and get nudged by SMS, Email or WhatsApp before it's due.
+          Pick a due time for any task and get nudged by Email or WhatsApp before it's due.
         </p>
       </div>
 
@@ -138,10 +146,11 @@ function MyRemindersPage() {
                       <td style={{ padding: '10px 14px', maxWidth: 320 }}>{t.description}</td>
                       <td style={{ padding: '10px 14px' }}>
                         {reminder ? (
-                          <div className="col" style={{ gap: 2 }}>
-                            <span className="pill">{reminderStatusLabel(reminder)}</span>
-                            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                              Due {fmtDateTime(reminder.dueAt)} · {reminder.channels.join(', ')}
+                          <div className="col" style={{ gap: 4, alignItems: 'flex-start' }}>
+                            <span className={reminderStatus(reminder).className}>{reminderStatus(reminder).label}</span>
+                            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                              Due <b style={{ color: 'var(--ink-2)' }}>{fmtDateTime(reminder.dueAt)}</b> · via{' '}
+                              {reminder.channels.map((c) => CHANNEL_LABELS[c] ?? c).join(' and ')}
                             </span>
                           </div>
                         ) : (

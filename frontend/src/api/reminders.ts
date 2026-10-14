@@ -5,7 +5,7 @@ export interface ReminderInput {
   taskId: string;
   dueAt: string; // ISO instant
   channels: ReminderChannel[];
-  repeatCount: number;
+  remindAt: string[]; // ISO instants, each at or before dueAt
 }
 
 export type ReminderUpdateInput = Partial<Omit<ReminderInput, 'taskId'>>;

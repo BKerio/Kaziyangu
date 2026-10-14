@@ -41,7 +41,7 @@ import {
   stepFooter,
   verticalRow,
 } from './ui.js';
-import type { ImageMessage, IncomingMessage, ListSection, ReplyButton, WebhookPayload } from './whatsapp.types.js';
+import type { ImageMessage, IncomingMessage, ListSection, ReplyButton, WebhookContact, WebhookPayload } from './whatsapp.types.js';
 
 /** Best-effort file extension for a screenshot downloaded from WhatsApp, from its MIME type. */
 function extFromMime(mimeType: string): string {
@@ -88,6 +88,23 @@ interface Draft {
   status: TaskStatus;
   hoursSpent?: number;
   percentComplete: number;
+}
+
+/**
+ * The sender's phone digits - from `from`, or the matching contact's `wa_id`.
+ * A BSUID ("KE.1234…") is not a phone number, so it's ignored rather than
+ * letting its digits accidentally match someone's phone.
+ */
+function senderPhone(message: IncomingMessage, contacts: WebhookContact[] | undefined): string | null {
+  const isPhone = (v: string | undefined): v is string => !!v && /^\+?\d{9,15}$/.test(v);
+  if (isPhone(message.from)) return message.from;
+  const contact = contacts?.find((c) => isPhone(c.wa_id));
+  return contact?.wa_id ?? null;
+}
+
+/** "…0480" - enough to tell senders apart in logs without recording full numbers. */
+function maskPhone(phone: string): string {
+  return `…${phone.slice(-4)}`;
 }
 
 function extractInput(message: IncomingMessage): string {
@@ -218,10 +235,27 @@ export class WhatsAppBotService {
 
         for (const message of value.messages) {
           await this.client.markAsRead(message.id);
+
+          const phone = senderPhone(message, value.contacts);
+          if (!phone) {
+            // Username-only sender: no phone number to match a staff profile
+            // against, and nothing we can reliably reply to. Log the shape
+            // (never the content) so it shows up when someone reports silence.
+            this.app.log.warn(
+              {
+                type: message.type,
+                messageKeys: Object.keys(message),
+                contactKeys: Object.keys(value.contacts?.[0] ?? {}),
+              },
+              'Inbound WhatsApp message has no sender phone number (username-only sender?) - skipped'
+            );
+            continue;
+          }
+
           try {
-            await this.handleMessage(message.from, message);
+            await this.handleMessage(phone, message);
           } catch (err) {
-            this.app.log.error({ err, from: message.from }, 'WhatsApp message handling failed');
+            this.app.log.error({ err, from: maskPhone(phone) }, 'WhatsApp message handling failed');
           }
         }
       }
@@ -232,6 +266,7 @@ export class WhatsAppBotService {
 
   private async handleMessage(to: string, message: IncomingMessage): Promise<void> {
     const user = await findUserByPhone(this.app.prisma, to);
+    this.app.log.info({ from: maskPhone(to), type: message.type, matchedUser: user?.id ?? null }, 'Inbound WhatsApp message');
     if (!user) {
       await this.client.sendMessage(to, { type: 'text', text: unregisteredText(this.portalUrl) });
       return;

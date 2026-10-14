@@ -7,13 +7,15 @@ import type { PrismaClient } from '../../generated/prisma/index.js';
  * last 9 digits is long enough to be unique per person while absorbing
  * country-code / leading-zero formatting differences.
  */
-function significantDigits(phone: string): string {
-  return phone.replace(/\D/g, '').slice(-9);
+function significantDigits(phone: string | null | undefined): string {
+  return (phone ?? '').replace(/\D/g, '').slice(-9);
 }
 
 export async function findUserByPhone(prisma: PrismaClient, waPhone: string) {
   const target = significantDigits(waPhone);
-  if (!target) return null;
+  // Fewer than 9 digits can't identify anyone - and would otherwise match
+  // every staff row whose phone was saved blank.
+  if (target.length < 9) return null;
 
   const candidates = await prisma.user.findMany({
     where: { isActive: true, phone: { not: null } },

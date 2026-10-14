@@ -9,21 +9,56 @@ import { EmailClient } from './email.client.js';
 
 const MANAGER_ROLES: Role[] = [Role.ADMIN, Role.SUPER_ADMIN];
 
-// Fixed reminder cadence: first send 30 minutes before the due time, then
-// every 10 minutes after that until `repeatCount` sends have gone out.
-const LEAD_MINUTES = 30;
-const INTERVAL_MINUTES = 10;
-const MIN_REPEAT = 1;
-const MAX_REPEAT = 5;
+// Cadence for reminders created before users could pick their own times
+// (empty `remindAt`): first send 30 minutes before the due time, then every
+// 10 minutes until `repeatCount` sends have gone out.
+const LEGACY_LEAD_MINUTES = 30;
+const LEGACY_INTERVAL_MINUTES = 10;
+const MAX_TIMES = 5;
+// A time picked "now" can be a few seconds stale by the time it's saved.
+const PAST_GRACE_MS = 60_000;
 
 export interface CreateReminderInput {
   taskId: string;
   dueAt: string;
   channels: ReminderChannel[];
-  repeatCount: number;
+  /** ISO instants to send at. Older clients send `repeatCount` instead. */
+  remindAt?: string[];
+  repeatCount?: number;
 }
 
-export type UpdateReminderInput = Partial<CreateReminderInput>;
+export type UpdateReminderInput = Partial<Omit<CreateReminderInput, 'taskId'>>;
+
+function legacySchedule(dueAt: Date, repeatCount: number): Date[] {
+  const first = dueAt.getTime() - LEGACY_LEAD_MINUTES * 60_000;
+  return Array.from({ length: repeatCount }, (_, i) => new Date(first + i * LEGACY_INTERVAL_MINUTES * 60_000));
+}
+
+/** Parses, de-duplicates (to the minute) and sorts reminder times, enforcing 1-5 future times at or before the due time. */
+function normalizeTimes(raw: Array<string | Date>, dueAt: Date): Date[] {
+  const byMinute = new Map<number, Date>();
+  for (const value of raw) {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) throw new BadRequestError('One of the reminder times is not a valid date/time');
+    const minute = Math.floor(d.getTime() / 60_000) * 60_000;
+    byMinute.set(minute, new Date(minute));
+  }
+  const times = [...byMinute.values()].sort((a, b) => a.getTime() - b.getTime());
+
+  if (times.length === 0) throw new BadRequestError('Add at least one reminder time');
+  if (times.length > MAX_TIMES) throw new BadRequestError(`You can set up to ${MAX_TIMES} reminder times`);
+  if (times[0].getTime() < Date.now() - PAST_GRACE_MS) throw new BadRequestError('Reminder times must be in the future');
+  if (times[times.length - 1].getTime() > dueAt.getTime()) {
+    throw new BadRequestError('Reminder times must be at or before the due time');
+  }
+  return times;
+}
+
+function parseDueAt(value: string): Date {
+  const dueAt = new Date(value);
+  if (isNaN(dueAt.getTime())) throw new BadRequestError('Invalid due date/time');
+  return dueAt;
+}
 
 const TASK_INCLUDE = {
   task: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
@@ -44,11 +79,8 @@ export class ReminderService {
     return MANAGER_ROLES.includes(role);
   }
 
-  private validateChannelsAndCount(channels: ReminderChannel[], repeatCount: number): void {
+  private validateChannels(channels: ReminderChannel[]): void {
     if (!channels || channels.length === 0) throw new BadRequestError('Pick at least one reminder channel');
-    if (repeatCount < MIN_REPEAT || repeatCount > MAX_REPEAT) {
-      throw new BadRequestError(`Repeat count must be between ${MIN_REPEAT} and ${MAX_REPEAT}`);
-    }
   }
 
   private async findOwnedTask(taskId: string, actor: { userId: string; role: Role }) {
@@ -70,22 +102,23 @@ export class ReminderService {
   }
 
   async createReminder(actor: { userId: string; role: Role }, input: CreateReminderInput) {
-    this.validateChannelsAndCount(input.channels, input.repeatCount);
+    this.validateChannels(input.channels);
 
     const task = await this.findOwnedTask(input.taskId, actor);
 
     const existing = await this.app.prisma.taskReminder.findUnique({ where: { taskId: input.taskId } });
     if (existing) throw new ConflictError('This task already has a reminder set - edit or delete it instead');
 
-    const dueAt = new Date(input.dueAt);
-    if (isNaN(dueAt.getTime())) throw new BadRequestError('Invalid due date/time');
+    const dueAt = parseDueAt(input.dueAt);
+    const remindAt = normalizeTimes(input.remindAt ?? legacySchedule(dueAt, input.repeatCount ?? 1), dueAt);
 
     const reminder = await this.app.prisma.taskReminder.create({
       data: {
         dueAt,
         channels: input.channels,
-        repeatCount: input.repeatCount,
-        nextRunAt: new Date(dueAt.getTime() - LEAD_MINUTES * 60_000),
+        remindAt,
+        repeatCount: remindAt.length,
+        nextRunAt: remindAt[0],
         status: ReminderStatus.SCHEDULED,
         taskId: task.id,
         userId: task.userId,
@@ -114,26 +147,26 @@ export class ReminderService {
     const reminder = await this.findOwnedReminder(id, actor);
 
     const channels = patch.channels ?? (reminder.channels as ReminderChannel[]);
-    const repeatCount = patch.repeatCount ?? reminder.repeatCount;
-    this.validateChannelsAndCount(channels, repeatCount);
+    this.validateChannels(channels);
 
-    let dueAt = reminder.dueAt;
-    if (patch.dueAt !== undefined) {
-      dueAt = new Date(patch.dueAt);
-      if (isNaN(dueAt.getTime())) throw new BadRequestError('Invalid due date/time');
-    }
+    const dueAt = patch.dueAt !== undefined ? parseDueAt(patch.dueAt) : reminder.dueAt;
+    const remindAt = normalizeTimes(
+      patch.remindAt ??
+        (reminder.remindAt.length > 0 ? reminder.remindAt : legacySchedule(dueAt, patch.repeatCount ?? reminder.repeatCount)),
+      dueAt
+    );
 
-    // Any edit re-arms the reminder from scratch - sent count resets and the
-    // next fire is recomputed from the (possibly new) due time.
+    // Any edit re-arms the reminder from scratch with the new set of times.
     const updated = await this.app.prisma.taskReminder.update({
       where: { id },
       data: {
         dueAt,
         channels,
-        repeatCount,
+        remindAt,
+        repeatCount: remindAt.length,
         sentCount: 0,
         status: ReminderStatus.SCHEDULED,
-        nextRunAt: new Date(dueAt.getTime() - LEAD_MINUTES * 60_000),
+        nextRunAt: remindAt[0],
       },
       include: TASK_INCLUDE,
     });
@@ -216,8 +249,10 @@ export class ReminderService {
 
   /**
    * Polled by reminder.scheduler.ts every minute. Fires every reminder whose
-   * `nextRunAt` has passed, then either reschedules it (10 min later) or
-   * marks it DONE once `repeatCount` has been reached. A task that's been
+   * `nextRunAt` has passed, then moves it on to its next chosen time (or, for
+   * older reminders without `remindAt`, 10 minutes later) - or marks it DONE
+   * once there's nothing left to send. Times missed while the server was down
+   * collapse into a single send rather than a burst. A task that's been
    * marked COMPLETED_CLOSED since the reminder was created is stopped
    * without sending anything further.
    */
@@ -247,13 +282,20 @@ export class ReminderService {
       });
 
       const sentCount = reminder.sentCount + 1;
-      const done = sentCount >= reminder.repeatCount;
+      const now = Date.now();
+      const nextRunAt =
+        reminder.remindAt.length > 0
+          ? reminder.remindAt.find((t) => t.getTime() > now) ?? null
+          : sentCount < reminder.repeatCount
+            ? new Date(now + LEGACY_INTERVAL_MINUTES * 60_000)
+            : null;
+
       await this.app.prisma.taskReminder.update({
         where: { id: reminder.id },
         data: {
           sentCount,
-          status: done ? ReminderStatus.DONE : ReminderStatus.ACTIVE,
-          nextRunAt: done ? null : new Date(Date.now() + INTERVAL_MINUTES * 60_000),
+          status: nextRunAt ? ReminderStatus.ACTIVE : ReminderStatus.DONE,
+          nextRunAt,
         },
       });
     }

@@ -29,15 +29,24 @@ export interface WebhookValue {
   statuses?: Array<{ id: string; status: string; recipient_id: string }>;
 }
 
+/**
+ * Since Meta's 2026 username rollout, a sender who has set a WhatsApp username
+ * may arrive without a phone number - identified only by a business-scoped
+ * user id (BSUID, e.g. "KE.1234…") - so wa_id and `from` can't be assumed to
+ * be phone numbers.
+ */
 export interface WebhookContact {
-  profile: { name: string };
-  wa_id: string;
+  profile?: { name: string; username?: string };
+  wa_id?: string;
+  user_id?: string;
 }
 
 export type IncomingMessage = TextMessage | InteractiveMessage | ButtonMessage | ImageMessage;
 
 interface BaseMessage {
-  from: string;
+  /** Usually the sender's phone digits; may be a BSUID or missing for username-only senders. */
+  from?: string;
+  from_user_id?: string;
   id: string;
   timestamp: string;
 }

@@ -10,7 +10,10 @@ const createReminderSchema = z.object({
   taskId: z.string().uuid(),
   dueAt: z.string().min(1, 'Due date/time is required'),
   channels: z.array(z.nativeEnum(ReminderChannel)).min(1, 'Pick at least one reminder channel'),
-  repeatCount: z.number().int().min(1).max(5),
+  // The exact times to send - the service checks they're 1-5 future times at or before dueAt.
+  remindAt: z.array(z.string().min(1)).min(1, 'Add at least one reminder time').max(5, 'You can set up to 5 reminder times').optional(),
+  // Older clients: number of sends on the fixed 30-minutes-before cadence.
+  repeatCount: z.number().int().min(1).max(5).optional(),
 });
 
 const updateReminderSchema = createReminderSchema.omit({ taskId: true }).partial();

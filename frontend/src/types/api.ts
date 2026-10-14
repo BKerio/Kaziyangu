@@ -421,8 +421,9 @@ export interface OpportunityStats {
 export type ReminderChannel = 'SMS' | 'EMAIL' | 'WHATSAPP';
 export type ReminderStatus = 'SCHEDULED' | 'ACTIVE' | 'DONE' | 'CANCELLED';
 
+// SMS is no longer offered for new reminders; it stays in ReminderChannel so
+// older reminders that used it still display correctly.
 export const REMINDER_CHANNEL_OPTIONS: { value: ReminderChannel; label: string }[] = [
-  { value: 'SMS', label: 'SMS' },
   { value: 'EMAIL', label: 'Email' },
   { value: 'WHATSAPP', label: 'WhatsApp' },
 ];
@@ -439,6 +440,8 @@ export interface TaskReminder {
   id: string;
   dueAt: string;
   channels: ReminderChannel[];
+  /** The exact send times the user picked (ISO). Empty on reminders created before times could be chosen. */
+  remindAt: string[];
   repeatCount: number;
   sentCount: number;
   status: ReminderStatus;

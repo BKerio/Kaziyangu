@@ -480,9 +480,11 @@ model WorkTask {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TaskReminder - an opt-in nudge for a single WorkTask, fired across one or
-// more channels (SMS/Email/WhatsApp) starting 30 minutes before `dueAt`, then
-// every 10 minutes after that until `repeatCount` sends have gone out or the
-// task is marked COMPLETED_CLOSED (whichever comes first). See
+// more channels (Email/WhatsApp; SMS on older rows) at each of the times the
+// user picked in `remindAt`, until they've all gone out or the task is marked
+// COMPLETED_CLOSED (whichever comes first). Rows created before `remindAt`
+// existed have it empty and keep the old cadence: 30 minutes before `dueAt`,
+// then every 10 minutes until `repeatCount` sends. See
 // modules/reminders/reminder.service.ts for the scheduling logic.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -492,7 +494,10 @@ model TaskReminder {
   // time (e.g. "today 7pm") is a deadline, not the day the work gets logged.
   dueAt       DateTime          @map("due_at")
   channels    ReminderChannel[]
-  // How many times to send, across all channels together, before stopping.
+  // The exact moments to send, chosen by the user (ascending, at or before dueAt).
+  remindAt    DateTime[]        @default([]) @map("remind_at")
+  // How many times to send, across all channels together, before stopping -
+  // equals remindAt.length for reminders that have explicit times.
   repeatCount Int               @default(1) @map("repeat_count")
   sentCount   Int               @default(0) @map("sent_count")
   status      ReminderStatus    @default(SCHEDULED)
