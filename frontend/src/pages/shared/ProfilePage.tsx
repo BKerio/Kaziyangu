@@ -11,6 +11,7 @@ import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { getMyProfile, updateMyProfile, getErrorMessage } from '@/api/account';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import PageLoader from '@/components/shared/PageLoader';
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -119,7 +120,7 @@ function ProfilePage() {
         </div>
 
         {isLoading ? (
-          <div className="skel" style={{ height: 140 }} />
+          <PageLoader height={140} />
         ) : (
           <form className="col" style={{ gap: 16 }} onSubmit={handleProfileSubmit((data) => profileMutation.mutate(data))}>
             <div className="field">

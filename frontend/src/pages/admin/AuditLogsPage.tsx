@@ -5,6 +5,7 @@ import api from '@/api/client';
 import { AUDIT_ACTION_OPTIONS, AUDIT_SUBJECT_OPTIONS, AuditAction, AuditLog, AuditSubjectType, PaginatedResponse } from '@/types/api';
 import { fmtDateTime } from '@/lib/datetime';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
+import PageLoader from '@/components/shared/PageLoader';
 
 function actionLabel(action: string) {
   return AUDIT_ACTION_OPTIONS.find((a) => a.value === action)?.label ?? action;
@@ -108,7 +109,7 @@ function AuditLogsPage() {
 
       <div className="card">
         {isLoading ? (
-          <div className="card-pad"><div className="skel" style={{ height: 260 }} /></div>
+          <div className="card-pad"><PageLoader height={260} /></div>
         ) : logs.length === 0 ? (
           <div className="card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <ScrollText size={32} style={{ color: 'var(--red)' }} />

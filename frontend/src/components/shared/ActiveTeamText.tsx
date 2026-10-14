@@ -5,6 +5,7 @@ import { Users } from 'lucide-react';
 import api from '@/api/client';
 import { useOnlinePresence } from '@/hooks/useOnlinePresence';
 import { TeamRosterMember } from '@/types/api';
+import PageLoader from '@/components/shared/PageLoader';
 
 const CYCLE_MS = 2200;
 
@@ -46,7 +47,7 @@ function ActiveTeamText() {
   }, [roster.length]);
 
   if (isLoading) {
-    return <div className="card card-pad"><div className="skel" style={{ height: 40 }} /></div>;
+    return <div className="card card-pad"><PageLoader height={40} /></div>;
   }
   if (roster.length === 0) return null;
 

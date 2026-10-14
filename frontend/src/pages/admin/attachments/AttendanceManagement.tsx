@@ -9,6 +9,7 @@ import AppLoader from '@/components/shared/AppLoader';
 import api from '@/api/client';
 import { Attachee, Attendance, AttendanceStatus, PaginatedResponse, WorkMode } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
+import PageLoader from '@/components/shared/PageLoader';
 
 const STATUSES: AttendanceStatus[] = ['PRESENT', 'LATE', 'HALF_DAY', 'ON_LEAVE', 'ABSENT'];
 const WORK_MODES: WorkMode[] = ['ON_SITE', 'REMOTE', 'HYBRID'];
@@ -122,7 +123,7 @@ function AttendanceManagement() {
 
       <div className="card">
         {isLoading ? (
-          <div className="card-pad"><div className="skel" style={{ height: 240 }} /></div>
+          <div className="card-pad"><PageLoader height={240} /></div>
         ) : records.length === 0 ? (
           <div className="card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <CalendarCheck size={32} style={{ color: 'var(--red)' }} />

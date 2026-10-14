@@ -8,6 +8,8 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
 import { notify } from '@/lib/alert';
 import { WorkTask } from '@/types/api';
+import PageLoader from '@/components/shared/PageLoader';
+import TopProgressBar from '@/components/shared/TopProgressBar';
 
 // Shared with the "reconnected" status bar's own display time below, so the
 // welcome popup fired on first connect (login success) disappears in step
@@ -128,8 +130,9 @@ function AppShell() {
             {isFirstConnect ? `Welcome back, ${user?.name?.split(' ')[0] || user?.name}!` : 'Reconnected'}
           </div>
         )}
+        <TopProgressBar />
         <main className="content">
-          <Suspense fallback={<div className="p-10 text-center font-bold" style={{ color: 'var(--muted)' }}>Loading…</div>}>
+          <Suspense fallback={<PageLoader height={360} label="Loading page…" size={36} />}>
             <Outlet />
           </Suspense>
         </main>

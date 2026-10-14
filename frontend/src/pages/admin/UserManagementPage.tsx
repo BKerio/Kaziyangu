@@ -13,6 +13,7 @@ import api from '@/api/client';
 import { DEPARTMENT_OPTIONS, PaginatedResponse, Role, User } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
+import PageLoader from '@/components/shared/PageLoader';
 
 const ROLES: Role[] = ['STAFF', 'ADMIN', 'SUPER_ADMIN'];
 
@@ -210,7 +211,7 @@ function UserManagementPage() {
 
       <div className="card">
         {isLoading ? (
-          <div className="card-pad"><div className="skel" style={{ height: 240 }} /></div>
+          <div className="card-pad"><PageLoader height={240} /></div>
         ) : users.length === 0 ? (
           <div className="card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <Users size={32} style={{ color: 'var(--red)' }} />

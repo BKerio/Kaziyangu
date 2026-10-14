@@ -7,6 +7,7 @@ import {
 import api from '@/api/client';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { useTaskOptions } from '@/hooks/useTaskOptions';
+import PageLoader from '@/components/shared/PageLoader';
 import {
   DEPARTMENT_OPTIONS,
   DepartmentCount,
@@ -214,7 +215,7 @@ function VerticalSummaryPage() {
           <span className="card-title">Top Engineers of the Week</span>
         </div>
         {resourceLoading ? (
-          <div className="skel" style={{ height: 160 }} />
+          <PageLoader height={160} />
         ) : topEngineers.length === 0 ? (
           <EmptyChart label="No hours logged this week yet" />
         ) : (
@@ -248,7 +249,7 @@ function VerticalSummaryPage() {
 
       <div className="card card-pad">
         {isLoading ? (
-          <div className="skel" style={{ height: 260 }} />
+          <PageLoader height={260} />
         ) : chartData.length === 0 ? (
           <div className="flex flex-col items-center text-center" style={{ gap: 8, padding: '32px 20px' }}>
             <Layers size={32} style={{ color: 'var(--red)' }} />
@@ -311,7 +312,7 @@ function VerticalSummaryPage() {
       </div>
 
       {overviewLoading ? (
-        <div className="card card-pad"><div className="skel" style={{ height: 220 }} /></div>
+        <div className="card card-pad"><PageLoader height={220} /></div>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>

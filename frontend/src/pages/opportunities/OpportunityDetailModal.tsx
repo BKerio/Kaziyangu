@@ -14,6 +14,7 @@ import {
   ACTIVITY_TYPE_OPTIONS, Opportunity, OpportunityAttachment, PRIORITY_OPTIONS, STAGE_OPTIONS, User,
 } from '@/types/api';
 import { stagePillClass, priorityPillClass, stageLabel } from '@/utils/opportunity';
+import PageLoader from '@/components/shared/PageLoader';
 
 const optionalNumber = z.preprocess(
   (v) => (v === '' || v === null || v === undefined ? undefined : v),
@@ -287,7 +288,7 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
         </div>
 
         {isLoading || !opportunity ? (
-          <div className="card-pad"><div className="skel" style={{ height: 320 }} /></div>
+          <div className="card-pad"><PageLoader height={320} /></div>
         ) : (
           <form className="card-pad col" style={{ gap: 20 }} onSubmit={handleSubmit((v) => saveMutation.mutate(v))}>
             {/* 1. Identified */}

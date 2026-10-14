@@ -17,6 +17,7 @@ import { confirmDialog, promptDialog } from '@/lib/alert';
 import { nairobiTodayISO } from '@/lib/datetime';
 import { OutOfOfficeEntry } from '@/types/api';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
+import PageLoader from '@/components/shared/PageLoader';
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -530,7 +531,7 @@ function TeamCalendarPage() {
 
       <div className="card card-pad">
         {isLoading ? (
-          <div className="skel" style={{ height: 72 }} />
+          <PageLoader height={72} />
         ) : (
           <div className="flex" style={{ gap: 12, flexWrap: 'wrap' }}>
             <OutRoster

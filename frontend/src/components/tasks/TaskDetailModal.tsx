@@ -9,6 +9,7 @@ import { TaskAttachment, WorkTask } from '@/types/api';
 import { statusPillClass } from '@/utils/taskStatus';
 import { fmtDate } from '@/lib/datetime';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
+import PageLoader from '@/components/shared/PageLoader';
 
 interface TaskDetailModalProps {
   task: WorkTask;
@@ -98,7 +99,7 @@ function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
             </p>
 
             {isLoading ? (
-              <div className="skel" style={{ height: 80 }} />
+              <PageLoader height={80} />
             ) : (attachments?.length ?? 0) === 0 ? (
               <p className="text-sm" style={{ color: 'var(--muted)' }}>No files attached to this task.</p>
             ) : (

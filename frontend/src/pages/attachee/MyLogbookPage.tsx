@@ -9,6 +9,7 @@ import AppLoader from '@/components/shared/AppLoader';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/api/client';
 import { PaginatedResponse, ReportStatus, TaskReport } from '@/types/api';
+import PageLoader from '@/components/shared/PageLoader';
 
 function label(s: string) {
   return s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
@@ -75,7 +76,7 @@ function MyLogbookPage() {
 
       <div className="col" style={{ gap: 12 }}>
         {isLoading ? (
-          <div className="card card-pad"><div className="skel" style={{ height: 160 }} /></div>
+          <div className="card card-pad"><PageLoader height={160} /></div>
         ) : reports.length === 0 ? (
           <div className="card card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <FileCheck size={32} style={{ color: 'var(--red)' }} />

@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/api/client';
 import { Attachee, PaginatedResponse, ReportStatus, TaskReport } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
+import PageLoader from '@/components/shared/PageLoader';
 
 const STATUSES: ReportStatus[] = ['PENDING', 'APPROVED', 'NEEDS_REVISION', 'REJECTED'];
 
@@ -134,7 +135,7 @@ function LogbookManagement() {
 
       <div className="col" style={{ gap: 12 }}>
         {isLoading ? (
-          <div className="card card-pad"><div className="skel" style={{ height: 160 }} /></div>
+          <div className="card card-pad"><PageLoader height={160} /></div>
         ) : reports.length === 0 ? (
           <div className="card card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <FileCheck size={32} style={{ color: 'var(--red)' }} />

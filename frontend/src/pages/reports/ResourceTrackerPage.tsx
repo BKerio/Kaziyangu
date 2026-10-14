@@ -4,6 +4,7 @@ import { TrendingUp as TrendUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '@/api/client';
 import { ResourceWeeklyReport } from '@/types/api';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
+import PageLoader from '@/components/shared/PageLoader';
 
 function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -57,7 +58,7 @@ function ResourceTrackerPage() {
 
       <div className="card">
         {isLoading ? (
-          <div className="card-pad"><div className="skel" style={{ height: 240 }} /></div>
+          <div className="card-pad"><PageLoader height={240} /></div>
         ) : rows.length === 0 ? (
           <div className="card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <TrendUp size={32} style={{ color: 'var(--red)' }} />

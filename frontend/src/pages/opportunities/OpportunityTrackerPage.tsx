@@ -14,6 +14,7 @@ import {
 import { formatKsh, stagePillClass, priorityPillClass, stageLabel, priorityLabel } from '@/utils/opportunity';
 import OpportunityFormModal from './OpportunityFormModal';
 import OpportunityDetailModal from './OpportunityDetailModal';
+import PageLoader from '@/components/shared/PageLoader';
 
 function OpportunityTrackerPage() {
   const [page, setPage] = useState(1);
@@ -153,7 +154,7 @@ function OpportunityTrackerPage() {
 
       <div className="card">
         {isLoading ? (
-          <div className="card-pad"><div className="skel" style={{ height: 260 }} /></div>
+          <div className="card-pad"><PageLoader height={260} /></div>
         ) : opportunities.length === 0 ? (
           <div className="card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <Target size={32} style={{ color: 'var(--red)' }} />

@@ -9,6 +9,7 @@ import { PaginatedResponse, TaskReminder, WorkTask } from '@/types/api';
 import { confirmDialog } from '@/lib/alert';
 import { fmtDate, fmtDateTime, NBO_TZ } from '@/lib/datetime';
 import ReminderFormModal, { ReminderFormValues } from '@/components/reminders/ReminderFormModal';
+import PageLoader from '@/components/shared/PageLoader';
 
 // Cadence the server used before users could pick their own times.
 const LEGACY_LEAD_MINUTES = 30;
@@ -119,7 +120,7 @@ function MyRemindersPage() {
 
       <div className="card">
         {tasksLoading ? (
-          <div className="card-pad"><div className="skel" style={{ height: 200 }} /></div>
+          <div className="card-pad"><PageLoader height={200} /></div>
         ) : tasks.length === 0 ? (
           <div className="card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <BellRing size={32} style={{ color: 'var(--red)' }} />

@@ -5,6 +5,7 @@ import { confirmDialog } from '@/lib/alert';
 import { fmtDate, fmtTime, nairobiTodayISO } from '@/lib/datetime';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { MicrosoftCalendarEvent } from '@/types/api';
+import PageLoader from '@/components/shared/PageLoader';
 
 const LOOKAHEAD_DAYS = 14;
 const LOOKBACK_DAYS = 14;
@@ -204,7 +205,7 @@ function MyCalendarPage() {
       </div>
 
       {isLoading ? (
-        <div className="card card-pad"><div className="skel" style={{ height: 200 }} /></div>
+        <div className="card card-pad"><PageLoader height={200} /></div>
       ) : isError ? (
         <div className="card card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
           <CalendarDays size={32} style={{ color: 'var(--muted-2)' }} />

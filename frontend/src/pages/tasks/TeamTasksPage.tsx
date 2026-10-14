@@ -11,6 +11,7 @@ import { confirmDialog } from '@/lib/alert';
 import TaskFormModal, { TaskFormValues } from '@/components/tasks/TaskFormModal';
 import TaskDetailModal from '@/components/tasks/TaskDetailModal';
 import TaskTableRow from '@/components/tasks/TaskTableRow';
+import PageLoader from '@/components/shared/PageLoader';
 
 function TeamTasksPage() {
   const [page, setPage] = useState(1);
@@ -133,7 +134,7 @@ function TeamTasksPage() {
 
       <div className="card">
         {isLoading ? (
-          <div className="card-pad"><div className="skel" style={{ height: 200 }} /></div>
+          <div className="card-pad"><PageLoader height={200} /></div>
         ) : tasks.length === 0 ? (
           <div className="card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
             <ListChecks size={32} style={{ color: 'var(--red)' }} />

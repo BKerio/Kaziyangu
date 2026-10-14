@@ -12,6 +12,7 @@ import ActiveMembersRing from '@/components/shared/ActiveMembersRing';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Department, PaginatedResponse, WorkTask } from '@/types/api';
 import { fmtDate } from '@/lib/datetime';
+import PageLoader from '@/components/shared/PageLoader';
 
 interface FocusTile {
   icon: typeof Server;
@@ -114,7 +115,7 @@ function StaffDashboard() {
   const blockedCount = tasks.filter((t) => t.status === 'BLOCKED').length;
 
   if (profileLoading) {
-    return <div className="skel" style={{ height: 400 }} />;
+    return <PageLoader height={400} />;
   }
 
   return (

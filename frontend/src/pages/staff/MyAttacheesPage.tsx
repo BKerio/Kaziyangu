@@ -6,6 +6,7 @@ import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Attachee, DEPARTMENT_OPTIONS } from '@/types/api';
 import SupervisedAttendance from './SupervisedAttendance';
 import SupervisedLogbook from './SupervisedLogbook';
+import PageLoader from '@/components/shared/PageLoader';
 
 type Tab = 'roster' | 'attendance' | 'logbook';
 
@@ -51,7 +52,7 @@ function MyAttacheesPage() {
       </div>
 
       {isLoading ? (
-        <div className="card card-pad"><div className="skel" style={{ height: 200 }} /></div>
+        <div className="card card-pad"><PageLoader height={200} /></div>
       ) : roster.length === 0 ? (
         <div className="card card-pad flex flex-col items-center text-center" style={{ gap: 8, padding: '48px 20px' }}>
           <Users size={32} style={{ color: 'var(--red)' }} />

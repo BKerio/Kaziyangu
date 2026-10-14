@@ -25,6 +25,7 @@ import api from '@/api/client';
 import { useTaskOptions } from '@/hooks/useTaskOptions';
 import { nairobiTodayISO } from '@/lib/datetime';
 import { MyTimeStats, TimeBalanceLabel } from '@/types/api';
+import PageLoader from '@/components/shared/PageLoader';
 
 type RangeKey = 7 | 30 | 90;
 
@@ -195,7 +196,7 @@ function BalanceSnapshotCard({
         </div>
 
         {isLoading || !data ? (
-          <div className="skel" style={{ height: 160 }} />
+          <PageLoader height={160} />
         ) : (
           <>
             <div className="flex items-center gap-3">
@@ -472,7 +473,7 @@ function TimeBalancePage() {
               }}
             >
               {isLoading ? (
-                <div className="skel" style={{ width: 100, height: 100, borderRadius: 99 }} />
+                <PageLoader height={100} size={24} label="" />
               ) : (
                 <>
                   <div
@@ -515,7 +516,7 @@ function TimeBalancePage() {
               </div>
 
               {isLoading ? (
-                <div className="skel" style={{ height: 88 }} />
+                <PageLoader height={88} />
               ) : (
                 <>
                   <p className="text-sm" style={{ color: 'var(--ink-2)', lineHeight: 1.5, maxWidth: 560 }}>
@@ -561,7 +562,7 @@ function TimeBalancePage() {
             <span className="card-title">Hours by vertical</span>
           </div>
           {isLoading ? (
-            <div className="skel" style={{ height: 280 }} />
+            <PageLoader height={280} />
           ) : verticalPie.length === 0 ? (
             <EmptyState title="No vertical mix yet" body="When you log tasks, this pie shows where time lands." />
           ) : (
@@ -616,7 +617,7 @@ function TimeBalancePage() {
             <span className="card-title">Hours by category</span>
           </div>
           {isLoading ? (
-            <div className="skel" style={{ height: 280 }} />
+            <PageLoader height={280} />
           ) : categoryPie.length === 0 ? (
             <EmptyState title="No category mix yet" body="Categories reveal how you work: deployment, support, bids, and more." />
           ) : (
@@ -674,7 +675,7 @@ function TimeBalancePage() {
             <span className="card-title">Focus vs the rest</span>
           </div>
           {isLoading ? (
-            <div className="skel" style={{ height: 220 }} />
+            <PageLoader height={220} />
           ) : !focusSplit || focusSplit[0].value <= 0 ? (
             <EmptyState title="No focus signal" body="Your top vertical share will appear here." />
           ) : (
@@ -719,7 +720,7 @@ function TimeBalancePage() {
             <span className="card-title">Vertical ranking</span>
           </div>
           {isLoading ? (
-            <div className="skel" style={{ height: 220 }} />
+            <PageLoader height={220} />
           ) : verticalBars.length === 0 ? (
             <EmptyState title="Nothing ranked yet" body="Hours by vertical will sort here." />
           ) : (
@@ -752,7 +753,7 @@ function TimeBalancePage() {
         </div>
 
         {isLoading ? (
-          <div className="skel" style={{ height: 140 }} />
+          <PageLoader height={140} />
         ) : (
           <div
             style={{
