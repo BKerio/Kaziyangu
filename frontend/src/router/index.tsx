@@ -4,6 +4,7 @@ import RoleGuard from '@/components/shared/RoleGuard';
 import AppShell from '@/components/layout/AppShell';
 import LoginPage from '@/pages/auth/LoginPage';
 import MicrosoftCallbackPage from '@/pages/auth/MicrosoftCallbackPage';
+import PrivacyPolicyPage from '@/pages/legal/PrivacyPolicyPage';
 import { useAuthStore } from '@/stores/authStore';
 
 // Heavy authenticated pages are code-split so they load on demand (keeps the
@@ -43,6 +44,10 @@ export const router = createBrowserRouter([
   {
     path: '/auth/callback',
     element: <MicrosoftCallbackPage />,
+  },
+  {
+    path: '/privacy',
+    element: <PrivacyPolicyPage />,
   },
   {
     path: '/unauthorized',

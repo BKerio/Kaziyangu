@@ -943,6 +943,20 @@ h1, h2 { font-family: var(--font-display); }
 .login-copy { font-size: 12px; color: var(--muted-2); text-align: center; margin: 0; max-width: 380px; line-height: 1.5; }
 .login-submit:active:not(:disabled) { transform: scale(.98); }
 
+/* Public privacy policy - reuses the login card look, wider for reading. */
+.privacy-page { min-height: 100vh; padding: 40px 16px; background: radial-gradient(110% 70% at 50% -10%, color-mix(in srgb, var(--green) 8%, transparent), transparent 60%), var(--bg); }
+.privacy-card { max-width: 760px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
+.privacy-head { padding: 32px 30px 24px; border-bottom: 1px solid var(--border); }
+.privacy-body { padding: 24px 30px 30px; font-size: 14.5px; line-height: 1.65; color: var(--ink); }
+.privacy-body p { margin: 0 0 12px; }
+.privacy-body ul, .privacy-body ol { margin: 0 0 12px; padding-left: 22px; }
+.privacy-body ul { list-style: disc; }
+.privacy-body ol { list-style: decimal; }
+.privacy-body li { margin-bottom: 6px; }
+.privacy-body a { color: var(--green); text-decoration: underline; }
+.privacy-section { margin-top: 24px; scroll-margin-top: 16px; }
+.privacy-section h2 { font-family: var(--font-display); font-size: 17px; font-weight: 700; margin: 0 0 10px; color: var(--ink); }
+
 .alert-error {
   display: flex; align-items: flex-start; gap: 9px;
   padding: 12px 14px; border-radius: var(--radius-sm);
