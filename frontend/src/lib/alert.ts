@@ -64,6 +64,60 @@ export async function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   return result.isConfirmed;
 }
 
+const SIGN_OUT_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>`;
+
+/**
+ * Sign-out confirmation: shows which account is being signed out, defaults
+ * focus to "Sign out" (the user just asked for it) so Enter confirms and Esc
+ * backs out. Resolves true if the user confirmed.
+ */
+export async function signOutDialog(account: { name?: string; email?: string; role?: string } | null): Promise<boolean> {
+  const name = account?.name?.trim() || 'Your account';
+  const initials = name.split(/\s+/).map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  const role = account?.role ? account.role.replace(/_/g, ' ').toLowerCase() : '';
+
+  const result = await Swal.fire({
+    ...BUTTON_STYLING,
+    title: false,
+    icon: undefined,
+    html: `
+      <div class="so-head">
+        <span class="so-icon">${SIGN_OUT_ICON}</span>
+        <h2 class="so-title" id="so-title">Sign out?</h2>
+        <p class="so-lead">You'll be signed out of Your Task, My Task on this device.</p>
+      </div>
+      <div class="so-account">
+        <span class="so-av" aria-hidden="true">${escapeHtml(initials)}</span>
+        <span class="so-meta">
+          <b>${escapeHtml(name)}</b>
+          ${account?.email ? `<span>${escapeHtml(account.email)}</span>` : ''}
+        </span>
+        ${role ? `<span class="so-role">${escapeHtml(role)}</span>` : ''}
+      </div>
+      <p class="so-hint"><kbd>Enter</kbd> to sign out <span aria-hidden="true">·</span> <kbd>Esc</kbd> to stay</p>
+    `,
+    showCancelButton: true,
+    confirmButtonText: `${SIGN_OUT_ICON}<span>Sign out</span>`,
+    cancelButtonText: 'Stay signed in',
+    reverseButtons: true,
+    focusConfirm: true,
+    returnFocus: true,
+    width: 400,
+    showClass: { popup: 'so-show' },
+    hideClass: { popup: 'so-hide' },
+    customClass: {
+      container: 'so-backdrop',
+      popup: 'swal-signout',
+      htmlContainer: 'so-html',
+      confirmButton: 'btn btn-danger so-confirm',
+      cancelButton: 'btn btn-ghost so-cancel',
+      actions: 'swal-actions so-actions',
+    },
+    didOpen: (popup) => popup.setAttribute('aria-labelledby', 'so-title'),
+  });
+  return result.isConfirmed;
+}
+
 /** Simple informational alert with a single acknowledge button. */
 export function alertInfo(title: string, text?: string) {
   return Swal.fire({
