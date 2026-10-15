@@ -13,8 +13,9 @@ const MAX_ATTACHMENT_MB = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
 import { TaskService } from '../tasks/task.service.js';
 import { TaskAttachmentService } from '../tasks/task-attachment.service.js';
 import { BotSessionService, FlowStep, Session } from './bot-session.service.js';
-import { WhatsAppClient } from './whatsapp.client.js';
-import { findUserByPhone } from './user-lookup.js';
+import { WhatsAppClient, isBusinessScopedUserId } from './whatsapp.client.js';
+import { findUserByPhone, findUserByWhatsAppId, linkWhatsAppId, toWhatsAppNumber } from './user-lookup.js';
+import { randomInt } from 'node:crypto';
 import { formatTaskSummary } from './task-format.js';
 import {
   ASSISTANT_NAME,
@@ -147,12 +148,31 @@ interface Draft {
  * A BSUID ("KE.1234…") is not a phone number, so it's ignored rather than
  * letting its digits accidentally match someone's phone.
  */
-function senderPhone(message: IncomingMessage, contacts: WebhookContact[] | undefined): string | null {
-  const isPhone = (v: string | undefined): v is string => !!v && /^\+?\d{9,15}$/.test(v);
-  if (isPhone(message.from)) return message.from;
-  const contact = contacts?.find((c) => isPhone(c.wa_id));
-  return contact?.wa_id ?? null;
+interface Sender {
+  /** Where replies go: the phone number when shared, otherwise the business-scoped user id. */
+  address: string;
+  phone: string | null;
+  /** Business-scoped user id ("KE.1234…"), present once Meta's username rollout reaches the sender. */
+  userId: string | null;
 }
+
+function identifySender(message: IncomingMessage, contacts: WebhookContact[] | undefined): Sender | null {
+  const isPhone = (v: string | undefined): v is string => !!v && /^\+?\d{9,15}$/.test(v);
+  const phone = isPhone(message.from) ? message.from : contacts?.find((c) => isPhone(c.wa_id))?.wa_id ?? null;
+  const userId =
+    [message.from_user_id, message.from, contacts?.[0]?.user_id].find((v) => isBusinessScopedUserId(v)) ?? null;
+  const address = phone ?? userId;
+  return address ? { address, phone, userId } : null;
+}
+
+/** "…0480" for a phone, "username user …1918" for a user id - never the full value in logs. */
+function maskAddress(address: string): string {
+  return isBusinessScopedUserId(address) ? `username user …${address.slice(-4)}` : maskPhone(address);
+}
+
+const LINK_CODE_TTL_MS = 10 * 60_000;
+const MAX_LINK_CODE_TRIES = 5;
+const MAX_LINK_CODE_SENDS = 3;
 
 /** "…0480" - enough to tell senders apart in logs without recording full numbers. */
 function maskPhone(phone: string): string {
@@ -302,43 +322,203 @@ export class WhatsAppBotService {
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
-        if (!value?.messages?.length) continue;
+        if (!value) continue;
 
-        for (const message of value.messages) {
+        // Meta accepts a send first and reports non-delivery later, here -
+        // without this, a reply that never reached someone leaves no trace.
+        for (const status of value.statuses ?? []) {
+          if (status.status !== 'failed') continue;
+          const err = status.errors?.[0];
+          this.app.log.warn(
+            {
+              to: status.recipient_id ? maskPhone(status.recipient_id) : status.recipient_user_id ? 'username user' : 'unknown',
+              code: err?.code,
+              title: err?.title,
+              details: err?.error_data?.details ?? err?.message,
+            },
+            'WhatsApp message was not delivered'
+          );
+        }
+
+        for (const message of value.messages ?? []) {
           await this.client.markAsRead(message.id);
 
-          const phone = senderPhone(message, value.contacts);
-          if (!phone) {
-            // Username-only sender: no phone number to match a staff profile
-            // against, and nothing we can reliably reply to. Log the shape
-            // (never the content) so it shows up when someone reports silence.
+          const sender = identifySender(message, value.contacts);
+          if (!sender) {
             this.app.log.warn(
-              {
-                type: message.type,
-                messageKeys: Object.keys(message),
-                contactKeys: Object.keys(value.contacts?.[0] ?? {}),
-              },
-              'Inbound WhatsApp message has no sender phone number (username-only sender?) - skipped'
+              { type: message.type, messageKeys: Object.keys(message), contactKeys: Object.keys(value.contacts?.[0] ?? {}) },
+              'Inbound WhatsApp message has neither a phone number nor a user id - skipped'
             );
             continue;
           }
 
           try {
-            await this.handleMessage(phone, message);
+            await this.handleMessage(sender, message);
           } catch (err) {
-            this.app.log.error({ err, from: maskPhone(phone) }, 'WhatsApp message handling failed');
+            this.app.log.error({ err, from: maskAddress(sender.address) }, 'WhatsApp message handling failed');
           }
         }
       }
     }
   }
 
+  /**
+   * The staff profile behind a sender: by phone number when WhatsApp shares
+   * it (remembering their user id for later), otherwise by a user id linked
+   * earlier.
+   */
+  private async resolveUser(sender: Sender): Promise<User | null> {
+    if (sender.phone) {
+      const user = await findUserByPhone(this.app.prisma, sender.phone);
+      if (user && sender.userId && user.whatsappUserId !== sender.userId) {
+        await linkWhatsAppId(this.app.prisma, user.id, sender.userId);
+      }
+      if (user || !sender.userId) return user;
+    }
+    return sender.userId ? findUserByWhatsAppId(this.app.prisma, sender.userId) : null;
+  }
+
+  // ── Linking a username-only sender to their profile ────────────────────────
+
+  /**
+   * Someone whose WhatsApp hides their number (they use a username) can't be
+   * matched by phone, so they confirm who they are once: they type the number
+   * on their staff profile and we send a one-time code to that number. Only
+   * the real owner of that WhatsApp number can read the code, so nobody can
+   * claim someone else's profile by typing their number.
+   */
+  private async handleUnlinkedSender(to: string, userId: string, input: string, normalized: string): Promise<void> {
+    const session = await this.sessions.get(to);
+
+    if (session.flow === 'link_code') {
+      if (normalized === 'restart') {
+        await this.sessions.advance(to, 'link_phone', { code: '', linkUser: '' });
+        await this.sendLinkIntro(to, 'Start again: reply with the phone number saved on your staff profile.');
+        return;
+      }
+      await this.stepLinkCode(to, userId, input, session);
+      return;
+    }
+    if (session.flow === 'link_phone') {
+      await this.stepLinkPhone(to, input, session);
+      return;
+    }
+
+    await this.sessions.reset(to);
+    await this.sessions.advance(to, 'link_phone', {});
+    await this.sendLinkIntro(to);
+  }
+
+  private async sendLinkIntro(to: string, lead?: string): Promise<void> {
+    await this.client.sendMessage(to, {
+      type: 'text',
+      text:
+        `*${ASSISTANT_NAME}*\n\n` +
+        (lead ??
+          'Welcome. Your WhatsApp uses a username, which hides your phone number, so I need to confirm who you are once.\n\n' +
+            'Reply with the *phone number saved on your staff profile*, for example 0712 345 678.') +
+        '\n\n_I will send a one-time code to that number to confirm it is yours._',
+    });
+  }
+
+  private async stepLinkPhone(to: string, input: string, session: Session): Promise<void> {
+    const digits = input.replace(/\D/g, '');
+    if (digits.length < 9 || digits.length > 15) {
+      await this.sendLinkIntro(to, 'That does not look like a phone number. Reply with the number on your staff profile, for example 0712 345 678.');
+      return;
+    }
+
+    const sends = Number(session.data.codeSends ?? '0');
+    if (sends >= MAX_LINK_CODE_SENDS) {
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: `Too many attempts. Please ask your administrator to check the phone number on your profile, or sign in at ${this.portalUrl}.`,
+      });
+      return;
+    }
+
+    const user = await findUserByPhone(this.app.prisma, digits);
+    if (!user || !user.phone) {
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text:
+          'No staff profile has that phone number.\n\n' +
+          `Check the number and try again, or ask your administrator to add it to your profile at ${this.portalUrl}.`,
+      });
+      return;
+    }
+
+    const code = String(randomInt(100000, 1000000));
+    const sent = await this.client.sendMessage(toWhatsAppNumber(user.phone), {
+      type: 'text',
+      text: `*${code}* is your Task Assistant code. Type it in the chat to link your WhatsApp to your staff profile. It expires in 10 minutes.\n\nIf you did not ask for this, ignore this message.`,
+    });
+
+    if (!sent) {
+      await this.sessions.advance(to, 'link_phone', { codeSends: String(sends + 1) });
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: 'I could not send a code to that number. Make sure it is the number you use for WhatsApp, then type it again.',
+      });
+      return;
+    }
+
+    await this.sessions.advance(to, 'link_code', {
+      linkUser: user.id,
+      code,
+      codeExpires: String(Date.now() + LINK_CODE_TTL_MS),
+      codeTries: '0',
+      codeSends: String(sends + 1),
+    });
+    await this.client.sendMessage(to, {
+      type: 'text',
+      text:
+        `I have sent a 6-digit code to the WhatsApp number ending *${user.phone.replace(/\D/g, '').slice(-4)}*. Type the code here.\n\n` +
+        '_Type *restart* to use a different number._',
+    });
+  }
+
+  private async stepLinkCode(to: string, userId: string, input: string, session: Session): Promise<void> {
+    const { code, linkUser, codeExpires } = session.data;
+    const tries = Number(session.data.codeTries ?? '0') + 1;
+
+    if (!code || !linkUser || Date.now() > Number(codeExpires ?? 0) || tries > MAX_LINK_CODE_TRIES) {
+      await this.sessions.advance(to, 'link_phone', { code: '', linkUser: '' });
+      await this.sendLinkIntro(to, 'That code has expired. Reply with your phone number again to get a new one.');
+      return;
+    }
+
+    if (input.replace(/\D/g, '') !== code) {
+      const left = MAX_LINK_CODE_TRIES - tries;
+      await this.sessions.advance(to, 'link_code', { codeTries: String(tries) });
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.`,
+      });
+      return;
+    }
+
+    await linkWhatsAppId(this.app.prisma, linkUser, userId);
+    this.app.log.info({ userId: linkUser }, 'Linked WhatsApp username user to staff profile');
+    const user = await findUserByWhatsAppId(this.app.prisma, userId);
+    if (user) await this.showMainMenu(to, user, '*You are all set.* This WhatsApp is now linked to your staff profile.');
+  }
+
   // ── Routing ──────────────────────────────────────────────────────────────
 
-  private async handleMessage(to: string, message: IncomingMessage): Promise<void> {
-    const user = await findUserByPhone(this.app.prisma, to);
-    this.app.log.info({ from: maskPhone(to), type: message.type, matchedUser: user?.id ?? null }, 'Inbound WhatsApp message');
+  private async handleMessage(sender: Sender, message: IncomingMessage): Promise<void> {
+    const to = sender.address;
+    const user = await this.resolveUser(sender);
+    this.app.log.info(
+      { from: maskAddress(to), viaUsername: !sender.phone, type: message.type, matchedUser: user?.id ?? null },
+      'Inbound WhatsApp message'
+    );
     if (!user) {
+      if (!sender.phone && sender.userId) {
+        const input = extractInput(message);
+        await this.handleUnlinkedSender(to, sender.userId, input, input.toLowerCase().trim());
+        return;
+      }
       await this.client.sendMessage(to, { type: 'text', text: unregisteredText(this.portalUrl) });
       return;
     }

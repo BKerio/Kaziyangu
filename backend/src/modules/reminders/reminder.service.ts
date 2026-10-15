@@ -3,6 +3,7 @@ import { ReminderChannel, ReminderStatus, Role, TaskStatus } from '../../shared/
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 import { isWhatsAppEnabled } from '../whatsapp/whatsapp.config.js';
 import { WhatsAppClient } from '../whatsapp/whatsapp.client.js';
+import { toWhatsAppNumber } from '../whatsapp/user-lookup.js';
 import { isSmsEnabled, isEmailEnabled } from './reminder.config.js';
 import { AdvantaSmsClient } from './sms.client.js';
 import { EmailClient } from './email.client.js';
@@ -215,8 +216,8 @@ export class ReminderService {
           error = 'No phone number on file';
         } else {
           try {
-            await this.whatsapp.sendMessage(task.user.phone, { type: 'text', text: message });
-            ok = true;
+            ok = await this.whatsapp.sendMessage(toWhatsAppNumber(task.user.phone), { type: 'text', text: message });
+            if (!ok) error = 'WhatsApp rejected the message (outside the 24-hour reply window, or the number is not on WhatsApp)';
           } catch (err) {
             error = err instanceof Error ? err.message : 'Send failed';
           }

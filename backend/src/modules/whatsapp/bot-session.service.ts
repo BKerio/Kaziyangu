@@ -2,6 +2,8 @@ import { AppContext } from '../../context.js';
 
 export type FlowStep =
   | 'idle'
+  | 'link_phone'
+  | 'link_code'
   | 'task_add_date'
   | 'task_add_vertical'
   | 'task_add_category'

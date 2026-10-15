@@ -186,6 +186,11 @@ model User {
   passwordHash String      @map("password_hash")
   name         String
   phone        String?
+  // WhatsApp's business-scoped user id ("KE.1234…") - how the bot recognises
+  // someone who uses a WhatsApp username and hides their phone number. Saved
+  // automatically whenever they message with their number visible, or after
+  // they confirm a one-time code sent to their registered number.
+  whatsappUserId String?   @unique @map("whatsapp_user_id")
   role         Role        @default(STAFF)
   isActive     Boolean     @default(true) @map("is_active")
   department   Department? // Org department - set for staff and attachees alike

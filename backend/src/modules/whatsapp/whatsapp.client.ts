@@ -37,6 +37,11 @@ function fit(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
+/** A business-scoped user id: two-letter country code, a dot, then letters/digits - e.g. "KE.13491208655302741918". */
+export function isBusinessScopedUserId(value: string | undefined): value is string {
+  return !!value && /^[A-Z]{2}\.[A-Za-z0-9]{1,128}$/.test(value);
+}
+
 /**
  * Thin wrapper over the Meta WhatsApp Cloud API. Failures are logged and
  * swallowed here rather than thrown - a bot reply that never arrives
@@ -53,7 +58,7 @@ export class WhatsAppClient {
     return `https://graph.facebook.com/${GRAPH_API_VERSION}/${this.creds.phoneNumberId}`;
   }
 
-  private async post(body: Record<string, unknown>): Promise<void> {
+  private async post(body: Record<string, unknown>): Promise<boolean> {
     const res = await fetch(`${this.apiBase()}/messages`, {
       method: 'POST',
       headers: {
@@ -66,10 +71,18 @@ export class WhatsAppClient {
     if (!res.ok) {
       this.log.error({ status: res.status, body: await res.text().catch(() => undefined) }, 'WhatsApp API error');
     }
+    return res.ok;
   }
 
-  async sendMessage(to: string, message: OutgoingMessage): Promise<void> {
-    await this.post({ messaging_product: 'whatsapp', to, ...buildPayload(message) });
+  /**
+   * Sends to a phone number, or - for a sender who uses a WhatsApp username
+   * and hides their number - to their business-scoped user id ("KE.1234…"),
+   * which Meta addresses via `recipient` with `to` left out entirely.
+   * Resolves false if Meta rejected the request.
+   */
+  async sendMessage(to: string, message: OutgoingMessage): Promise<boolean> {
+    const address = isBusinessScopedUserId(to) ? { recipient: to } : { to };
+    return this.post({ messaging_product: 'whatsapp', ...address, ...buildPayload(message) });
   }
 
   async markAsRead(messageId: string): Promise<void> {

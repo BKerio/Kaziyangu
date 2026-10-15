@@ -26,7 +26,14 @@ export interface WebhookValue {
   };
   contacts?: WebhookContact[];
   messages?: IncomingMessage[];
-  statuses?: Array<{ id: string; status: string; recipient_id: string }>;
+  /** Delivery receipts for messages we sent - a "failed" one is the only sign a reply never arrived. */
+  statuses?: Array<{
+    id: string;
+    status: string;
+    recipient_id?: string;
+    recipient_user_id?: string;
+    errors?: Array<{ code: number; title?: string; message?: string; error_data?: { details?: string } }>;
+  }>;
 }
 
 /**
