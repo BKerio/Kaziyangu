@@ -14,7 +14,8 @@ export type AuditSubjectType =
   | 'OUT_OF_OFFICE'
   | 'ATTENDANCE'
   | 'TASK_REPORT'
-  | 'TASK_REMINDER';
+  | 'TASK_REMINDER'
+  | 'CAMPAIGN';
 
 export interface RecordAuditInput {
   actorId: string;

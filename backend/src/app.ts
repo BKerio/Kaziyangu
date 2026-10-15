@@ -11,6 +11,8 @@ import { attachmentRoutes } from './modules/attachments/attachment.routes.js';
 import { opportunityRoutes } from './modules/opportunities/opportunity.routes.js';
 import { teamCalendarRoutes } from './modules/team-calendar/team-calendar.routes.js';
 import { reminderRoutes } from './modules/reminders/reminder.routes.js';
+import { campaignRoutes } from './modules/campaigns/campaign.routes.js';
+import { settingsRoutes } from './modules/settings/settings.routes.js';
 import { whatsappRoutes } from './modules/whatsapp/whatsapp.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
@@ -65,6 +67,8 @@ export function buildApp(ctx: AppContext): Express {
   app.use('/opportunities', opportunityRoutes(ctx));
   app.use('/team-calendar', teamCalendarRoutes(ctx));
   app.use('/reminders', reminderRoutes(ctx));
+  app.use('/campaigns', campaignRoutes(ctx));
+  app.use('/settings', settingsRoutes(ctx));
 
   // Mounted at both paths: /whatsapp matches this app's convention, while
   // /api/whatsapp is kept as an alias since that's the callback URL already

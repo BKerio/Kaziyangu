@@ -222,6 +222,7 @@ model User {
   loggedActivities      OpportunityActivity[] @relation("ActivityLoggedBy")
   outOfOfficeDays       OutOfOffice[]
   taskReminders         TaskReminder[]
+  campaignsCreated      Campaign[]            @relation("CampaignCreatedBy")
 
   microsoftAccount MicrosoftAccount?
 
@@ -523,6 +524,60 @@ model TaskReminder {
   @@index([nextRunAt])
   @@index([userId])
   @@map("task_reminders")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Campaign - an announcement an admin broadcasts to a chosen group of staff
+// over WhatsApp and/or SMS. One CampaignRecipient row per person per channel
+// records whether that send went out. See modules/campaigns.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Campaign {
+  id       String   @id @default(uuid())
+  title    String
+  message  String   @db.Text
+  // "WHATSAPP" | "SMS"
+  channels String[]
+  // The audience as chosen ({ everyone, roles, departments, userIds }), kept
+  // so the history shows who a campaign was aimed at, not just who got it.
+  audience Json
+  // SENDING -> SENT (all delivered) / PARTIAL (some failed) / FAILED (none delivered)
+  status   String   @default("SENDING")
+
+  recipientCount Int @default(0) @map("recipient_count")
+  sentCount      Int @default(0) @map("sent_count")
+  failedCount    Int @default(0) @map("failed_count")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  createdById String @map("created_by_id")
+  createdBy   User   @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+
+  recipients CampaignRecipient[]
+
+  @@index([createdAt])
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id      String    @id @default(uuid())
+  // Snapshot of the person at send time, so history survives renames/deletes.
+  userId  String    @map("user_id")
+  name    String
+  channel String
+  // PENDING | SENT | FAILED
+  status  String    @default("PENDING")
+  error   String?
+  sentAt  DateTime? @map("sent_at")
+  // When they tapped "View Notice" on WhatsApp and the full message was shown.
+  readAt  DateTime? @map("read_at")
+
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_recipients")
 }
 
 // One row per send attempt (one per channel per fire) - lets a staff member

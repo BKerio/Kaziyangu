@@ -17,6 +17,8 @@ const VerticalSummaryPage = lazy(() => import('@/pages/reports/VerticalSummaryPa
 const UserManagementPage = lazy(() => import('@/pages/admin/UserManagementPage'));
 const AttachmentAdminPage = lazy(() => import('@/pages/admin/AttachmentAdminPage'));
 const AuditLogsPage = lazy(() => import('@/pages/admin/AuditLogsPage'));
+const CampaignsPage = lazy(() => import('@/pages/admin/CampaignsPage'));
+const SettingsPage = lazy(() => import('@/pages/admin/SettingsPage'));
 const MyAttendancePage = lazy(() => import('@/pages/attachee/MyAttendancePage'));
 const MyLogbookPage = lazy(() => import('@/pages/attachee/MyLogbookPage'));
 const MyAttacheesPage = lazy(() => import('@/pages/staff/MyAttacheesPage'));
@@ -114,6 +116,22 @@ export const router = createBrowserRouter([
         element: (
           <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
             <AttachmentAdminPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'admin/settings',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
+            <SettingsPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: 'admin/campaigns',
+        element: (
+          <RoleGuard allowed={['SUPER_ADMIN', 'ADMIN']}>
+            <CampaignsPage />
           </RoleGuard>
         ),
       },

@@ -21,6 +21,8 @@ export interface EnvConfig {
   WHATSAPP_TOKEN?: string;
   WHATSAPP_PHONE_NUMBER_ID?: string;
   WHATSAPP_VERIFY_TOKEN?: string;
+  // Only needed for the Settings page's account/usage overview.
+  WHATSAPP_BUSINESS_ACCOUNT_ID?: string;
   // "Login with Outlook" (Microsoft identity platform) - all optional. Stays
   // disabled until every one of these is set; see modules/auth/microsoft-oauth.config.ts.
   MICROSOFT_CLIENT_ID?: string;
@@ -73,6 +75,7 @@ function loadEnv(): EnvConfig {
     WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN?.trim() || undefined,
     WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() || undefined,
     WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN?.trim() || undefined,
+    WHATSAPP_BUSINESS_ACCOUNT_ID: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim() || undefined,
     MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID?.trim() || undefined,
     MICROSOFT_TENANT_ID: process.env.MICROSOFT_TENANT_ID?.trim() || undefined,
     // Azure's app registration page shows two things for a client secret: a

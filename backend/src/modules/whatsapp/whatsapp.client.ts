@@ -90,7 +90,14 @@ export class WhatsAppClient {
    * delivers outside the 24-hour window after someone last wrote to us.
    * Body parameters can't contain newlines or tabs, so they're flattened.
    */
-  async sendTemplate(to: string, name: string, language: string, bodyParams: string[]): Promise<boolean> {
+  async sendTemplate(
+    to: string,
+    name: string,
+    language: string,
+    bodyParams: string[],
+    options: { maxParamLength?: number; quickReplyPayloads?: string[] } = {}
+  ): Promise<boolean> {
+    const { maxParamLength = 200, quickReplyPayloads = [] } = options;
     const address = isBusinessScopedUserId(to) ? { recipient: to } : { to };
     return this.post({
       messaging_product: 'whatsapp',
@@ -102,8 +109,16 @@ export class WhatsAppClient {
         components: [
           {
             type: 'body',
-            parameters: bodyParams.map((text) => ({ type: 'text', text: fit(text.replace(/\s+/g, ' ').trim(), 200) })),
+            parameters: bodyParams.map((text) => ({ type: 'text', text: fit(text.replace(/\s+/g, ' ').trim(), maxParamLength) })),
           },
+          // A quick-reply button can carry a hidden payload that comes back
+          // when it's tapped - e.g. which notice the person wants to read.
+          ...quickReplyPayloads.map((payload, index) => ({
+            type: 'button',
+            sub_type: 'quick_reply',
+            index: String(index),
+            parameters: [{ type: 'payload', payload }],
+          })),
         ],
       },
     });

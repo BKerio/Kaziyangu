@@ -20,6 +20,8 @@ import {
   Calendar,
   BellRing,
   ScrollText,
+  Megaphone,
+  Settings as SettingsIcon,
   ClockFading,
   Search,
   X,
@@ -80,7 +82,9 @@ const menuSections: NavSection[] = [
     items: [
       { label: 'Staff Members', path: '/admin/users', Icon: Users, roles: MANAGER_ROLES },
       { label: 'Attachees', path: '/admin/attachments', Icon: GraduationCap, roles: MANAGER_ROLES },
+      { label: 'Campaigns', path: '/admin/campaigns', Icon: Megaphone, roles: MANAGER_ROLES },
       { label: 'Audit Logs', path: '/admin/audit-logs', Icon: ScrollText, roles: MANAGER_ROLES },
+      { label: 'Settings', path: '/admin/settings', Icon: SettingsIcon, roles: MANAGER_ROLES },
     ],
   },
   {

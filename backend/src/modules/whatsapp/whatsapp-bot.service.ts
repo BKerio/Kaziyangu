@@ -13,6 +13,7 @@ const MAX_ATTACHMENT_MB = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
 import { TaskService } from '../tasks/task.service.js';
 import { TaskAttachmentService } from '../tasks/task-attachment.service.js';
 import { BotSessionService, FlowStep, Session } from './bot-session.service.js';
+import { CampaignService, NOTICE_PAYLOAD_PREFIX, noticeText } from '../campaigns/campaign.service.js';
 import { WhatsAppClient, isBusinessScopedUserId } from './whatsapp.client.js';
 import { findUserByPhone, findUserByWhatsAppId, linkWhatsAppId, toWhatsAppNumber } from './user-lookup.js';
 import { randomInt } from 'node:crypto';
@@ -307,12 +308,14 @@ export class WhatsAppBotService {
   private readonly tasks: TaskService;
   private readonly attachments: TaskAttachmentService;
   private readonly sessions: BotSessionService;
+  private readonly campaigns: CampaignService;
   private readonly portalUrl: string;
 
   constructor(private app: AppContext, private client: WhatsAppClient) {
     this.tasks = new TaskService(app);
     this.attachments = new TaskAttachmentService(app);
     this.sessions = new BotSessionService(app);
+    this.campaigns = new CampaignService(app);
     this.portalUrl = app.config.CORS_ORIGIN.startsWith('http') ? app.config.CORS_ORIGIN : 'the staff web portal';
   }
 
@@ -554,6 +557,18 @@ export class WhatsAppBotService {
 
     const normalized = input.toLowerCase().trim();
     const session = await this.sessions.get(to);
+
+    // "View Notice" on a campaign notice - show the full message, then put
+    // them back exactly where they were if they were mid-task.
+    if (input.startsWith(NOTICE_PAYLOAD_PREFIX)) {
+      const notice = await this.campaigns.openNotice(input.slice(NOTICE_PAYLOAD_PREFIX.length), user.id);
+      await this.client.sendMessage(to, {
+        type: 'text',
+        text: notice ? noticeText(notice.title, notice.message, user) : 'That notice is no longer available.',
+      });
+      if (session.flow !== 'idle') await this.renderStep(to, user, session);
+      return;
+    }
 
     // "menu", "hi", "cancel" and the like mid-task would otherwise throw the
     // whole draft away on one stray message - so confirm first. Saying it a
