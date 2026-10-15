@@ -10,6 +10,11 @@ import { EmailClient } from './email.client.js';
 
 const MANAGER_ROLES: Role[] = [Role.ADMIN, Role.SUPER_ADMIN];
 
+// The approved WhatsApp utility template for reminders - created in WhatsApp
+// Manager with body params {{1}} first name, {{2}} task, {{3}} due time.
+const REMINDER_TEMPLATE = 'task_reminder';
+const REMINDER_TEMPLATE_LANGUAGE = 'en';
+
 // Cadence for reminders created before users could pick their own times
 // (empty `remindAt`): first send 30 minutes before the due time, then every
 // 10 minutes until `repeatCount` sends have gone out.
@@ -216,8 +221,19 @@ export class ReminderService {
           error = 'No phone number on file';
         } else {
           try {
-            ok = await this.whatsapp.sendMessage(toWhatsAppNumber(task.user.phone), { type: 'text', text: message });
-            if (!ok) error = 'WhatsApp rejected the message (outside the 24-hour reply window, or the number is not on WhatsApp)';
+            const to = toWhatsAppNumber(task.user.phone);
+            // The approved template reaches people any time; plain text only
+            // within 24 hours of their last message, so it's the fallback for
+            // while the template is missing or not yet approved.
+            ok = await this.whatsapp.sendTemplate(to, REMINDER_TEMPLATE, REMINDER_TEMPLATE_LANGUAGE, [
+              task.user.name.split(' ')[0] || task.user.name,
+              task.description,
+              task.dueAtLabel,
+            ]);
+            if (!ok) {
+              ok = await this.whatsapp.sendMessage(to, { type: 'text', text: message });
+              if (!ok) error = 'WhatsApp rejected the message (template not approved yet, and outside the 24-hour reply window)';
+            }
           } catch (err) {
             error = err instanceof Error ? err.message : 'Send failed';
           }

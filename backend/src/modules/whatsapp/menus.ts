@@ -1,7 +1,8 @@
 import type { ListSection, ReplyButton } from './whatsapp.types.js';
 import { clip, formatDuration, gauge, WORKDAY_HOURS } from './ui.js';
 
-export const MENU_TRIGGERS = new Set(['hi', 'hello', 'hey', 'start', 'menu', '0', 'help']);
+// 'open menu' is the reminder template's quick-reply button.
+export const MENU_TRIGGERS = new Set(['hi', 'hello', 'hey', 'start', 'menu', 'open menu', '0', 'help']);
 
 export const ASSISTANT_NAME = 'Task Assistant';
 export const MENU_FOOTER = 'Millenium Solutions · Type menu at any time';

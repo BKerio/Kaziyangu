@@ -85,6 +85,30 @@ export class WhatsAppClient {
     return this.post({ messaging_product: 'whatsapp', ...address, ...buildPayload(message) });
   }
 
+  /**
+   * Sends an approved message template - the only kind of message WhatsApp
+   * delivers outside the 24-hour window after someone last wrote to us.
+   * Body parameters can't contain newlines or tabs, so they're flattened.
+   */
+  async sendTemplate(to: string, name: string, language: string, bodyParams: string[]): Promise<boolean> {
+    const address = isBusinessScopedUserId(to) ? { recipient: to } : { to };
+    return this.post({
+      messaging_product: 'whatsapp',
+      ...address,
+      type: 'template',
+      template: {
+        name,
+        language: { code: language },
+        components: [
+          {
+            type: 'body',
+            parameters: bodyParams.map((text) => ({ type: 'text', text: fit(text.replace(/\s+/g, ' ').trim(), 200) })),
+          },
+        ],
+      },
+    });
+  }
+
   async markAsRead(messageId: string): Promise<void> {
     try {
       await this.post({ messaging_product: 'whatsapp', status: 'read', message_id: messageId });
