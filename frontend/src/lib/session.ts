@@ -19,5 +19,5 @@ export async function confirmAndSignOut(
   navigate('/login', { replace: true });
 
   const firstName = user?.name?.split(' ')[0];
-  notify('success', 'Signed out', firstName ? `See you soon, ${firstName}.` : "You've been signed out of your workspace.", 3500);
+  notify('success', 'Logged out', firstName ? `See you soon, ${firstName}.` : "You've been logged out of your workspace.", 3500);
 }
