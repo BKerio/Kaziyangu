@@ -20,7 +20,7 @@ function MyTasksPage() {
   const [viewing, setViewing] = useState<WorkTask | null>(null);
   const { addNotification } = useNotificationStore();
   const queryClient = useQueryClient();
-  const { data: options } = useTaskOptions();
+  const { data: options } = useTaskOptions();vvvvv
 
   const verticalLabel = (v: string) => options?.verticals.find((o) => o.value === v)?.label ?? v;
   const categoryLabel = (c: string) => options?.categories.find((o) => o.value === c)?.label ?? c;
