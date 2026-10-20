@@ -10,7 +10,7 @@ const MAX_TIMES = 5;
 // Cadence the server used before times could be chosen - only needed to show
 // (and carry over) the times of reminders created back then.
 const LEGACY_LEAD_MINUTES = 30;
-const LEGACY_INTERVAL_MINUTES = 100;
+const LEGACY_INTERVAL_MINUTES = 10;
 
 export interface ReminderFormValues {
   dueAt: string; // ISO instant
