@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="12 21 494 494" width="494" height="494">
+  <title>Millenium Solutions</title>
+  <g fill="none" stroke="#ED1C24" stroke-linejoin="miter" stroke-miterlimit="10">
+    <path d="M319.4 488.3 A228.5 228.5 0 1 1 373 465.9" stroke-width="33" />
+    <path d="M164.5 352 V173 L312.5 321 L269.5 364 L209.5 304" stroke-width="36" />
+    <path d="M372.5 440 V170 L300 242.5" stroke-width="36" />
+  </g>
+  <g fill="#ED1C24">
+    <polygon points="146.5,340 182.5,340 182.5,348 146.5,384" />
+    <polygon points="354.5,430 390.5,430 390.5,456 354.5,494" />
+  </g>
+</svg>

@@ -1,14 +1,34 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, CircleAlert } from 'lucide-react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, CircleAlert, MessageCircle } from 'lucide-react';
 import api from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import AppLoader from '@/components/shared/AppLoader';
-import logo from '@/assets/logos/logo(black).png';
+import BrandMark from '@/components/brand/BrandMark';
+
+const WhatsAppPhone = lazy(() => import('@/components/promo/WhatsAppFilm'));
+
+// wa.me needs the number as bare digits with the country code, e.g. 254712345678.
+const BOT_DIGITS = ((import.meta.env.VITE_WHATSAPP_NUMBER as string | undefined) ?? '').replace(/\D/g, '');
+const WHATSAPP_LINK = BOT_DIGITS ? `https://wa.me/${BOT_DIGITS}?text=hi` : '';
+
+// The film only shows beside the form on wide screens; below this it isn't loaded at all.
+const FILM_QUERY = '(min-width: 1080px) and (min-height: 720px)';
+
+function useShowFilm() {
+  const [show, setShow] = useState(() => window.matchMedia(FILM_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(FILM_QUERY);
+    const on = () => setShow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return show;
+}
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -48,6 +68,7 @@ function LoginPage() {
   const [searchParams] = useSearchParams();
   const [serverError, setServerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const showFilm = useShowFilm();
 
   useEffect(() => {
     const oauthError = searchParams.get('error');
@@ -79,115 +100,137 @@ function LoginPage() {
     }
   };
 
+  const focusSignIn = () => {
+    const email = document.getElementById('login-email');
+    email?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    email?.focus({ preventScroll: true });
+  };
+
   return (
-    <div className="login-page">
-      <div className="login-card fade-up">
-        {/* Brand header */}
-        <div className="login-cobrand">
-          <img src={logo} draggable={false} alt="Millenium Solutions" style={{ height: 84, width: 'auto' }} />
-          <div className="login-cobrand-div" />
-          <div className="col" style={{ alignItems: 'flex-start' }}>
-            <span className="login-word-your">Your Task,</span>
-            <span className="login-word-my">My Task</span>
-          </div>
+    <div className="lx-page">
+      <header className="lx-nav">
+        <div className="lx-nav-inner">
+          <span className="lx-nav-brand brand-lockup">
+            <BrandMark size={44} />
+            <span className="brand-lockup-text">
+              <b>Millenium Solutions E.A Limited</b>
+              <span className="brand-tagline">Your technology partner</span>
+            </span>
+          </span>
+          <nav className="lx-nav-links" aria-label="Site">
+            {WHATSAPP_LINK && <a href={WHATSAPP_LINK} target="_blank" rel="noreferrer">WhatsApp Assistant</a>}
+            <Link to="/privacy">Privacy</Link>
+            <button type="button" className="lx-nav-cta" onClick={focusSignIn}>Sign in</button>
+          </nav>
         </div>
+      </header>
 
-        {/* Form body */}
-        <div className="login-body">
-          <h1 className="login-title">Sign in to your workspace</h1>
-          <p className="login-sub">Log daily tasks, track hours, and see what your team is working on.</p>
+      <main className="lx-hero">
+        {showFilm && (
+          <div className="lx-phone fade-up">
+            <Suspense fallback={null}>
+              <WhatsAppPhone />
+            </Suspense>
+          </div>
+        )}
 
-          {serverError && (
-            <div className="alert-error" role="alert">
-              <CircleAlert size={16} />
-              <span>{serverError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} className="col" style={{ gap: 16, marginTop: serverError ? 16 : 0 }}>
-            <div className="field">
-              <label className="label" htmlFor="login-email">Enter your email address</label>
-              <div className="input-icon">
-                <input
-                  {...register('email')}
-                  id="login-email"
-                  className="input"
-                  type="email"
-                  autoComplete="username"
-                  autoFocus
-                  placeholder="you@example.com"
-                  style={errors.email ? { borderColor: 'var(--red)' } : undefined}
-                />
-                <Mail size={16} />
-              </div>
-              {errors.email && (
-                <span className="field-error">{errors.email.message}</span>
-              )}
-            </div>
-
-            <div className="field">
-              <label className="label" htmlFor="login-password">Enter your password</label>
-              <div className="input-icon has-toggle">
-                <input
-                  {...register('passwordRaw')}
-                  id="login-password"
-                  className="input"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="************"
-                  style={errors.passwordRaw ? { borderColor: 'var(--red)' } : undefined}
-                />
-                <Lock size={16} />
-                <button
-                  type="button"
-                  className="field-toggle"
-                  onClick={() => setShowPassword((v) => !v)}
-                  tabIndex={-1}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.passwordRaw && (
-                <span className="field-error">{errors.passwordRaw.message}</span>
-              )}
-            </div>
-
-            <button
-              className="btn btn-primary btn-block btn-lg login-submit"
-              disabled={isSubmitting}
-              type="submit"
-              style={{ marginTop: 4 }}
-            >
-              {isSubmitting ? (
-                <><AppLoader size={24} /> Signing in…</>
-              ) : (
-                <>Sign in <ArrowRight size={16} /></>
-              )}
-            </button>
-          </form>
-
-          <div className="flex items-center gap-3" style={{ margin: '18px 0' }}>
-            <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>OR</span>
-            <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        <section className="lx-copy fade-up">
+          <div className="lx-lockup">
+            <span className="lx-word-your">Your Task,</span>
+            <span className="lx-word-my">My Task</span>
+            <span className="lx-tagline">Task tracking · Team reporting · WhatsApp</span>
           </div>
 
-          <a
-            href={`${import.meta.env.VITE_API_BASE_URL}/auth/microsoft/login`}
-            className="btn btn-soft btn-block btn-lg"
-            style={{ gap: 10 }}
-          >
-            <MicrosoftLogo /> Sign in with Outlook
-          </a>
-        </div>
+          <h1 className="lx-title">Your work,<br />logged in seconds</h1>
+          <p className="lx-sub">
+            Message the <b>Task Assistant</b> on WhatsApp → tap <b>Update Task</b>. Your workspace syncs before you&rsquo;ve put your phone down.
+          </p>
 
-        {/* Footer */}
-        <div className="login-foot">
-          <ShieldCheck size={15} />
-            Authorized personnel only · All activity is logged and audited
-        </div>
-      </div>
+          <div className="lx-form">
+            {serverError && (
+              <div className="alert-error" role="alert">
+                <CircleAlert size={16} />
+                <span>{serverError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit(onSubmit)} className="col" style={{ gap: 14, marginTop: serverError ? 16 : 0 }}>
+              <div className="field">
+                <label className="label" htmlFor="login-email">Enter your email address</label>
+                <div className="input-icon">
+                  <input
+                    {...register('email')}
+                    id="login-email"
+                    className="input"
+                    type="email"
+                    autoComplete="username"
+                    autoFocus
+                    placeholder="you@example.com"
+                    style={errors.email ? { borderColor: 'var(--red)' } : undefined}
+                  />
+                  <Mail size={16} />
+                </div>
+                {errors.email && (
+                  <span className="field-error">{errors.email.message}</span>
+                )}
+              </div>
+
+              <div className="field">
+                <label className="label" htmlFor="login-password">Enter your password</label>
+                <div className="input-icon has-toggle">
+                  <input
+                    {...register('passwordRaw')}
+                    id="login-password"
+                    className="input"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="************"
+                    style={errors.passwordRaw ? { borderColor: 'var(--red)' } : undefined}
+                  />
+                  <Lock size={16} />
+                  <button
+                    type="button"
+                    className="field-toggle"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.passwordRaw && (
+                  <span className="field-error">{errors.passwordRaw.message}</span>
+                )}
+              </div>
+
+              <button className="lx-pill lx-pill-dark" disabled={isSubmitting} type="submit" style={{ marginTop: 2 }}>
+                {isSubmitting ? (
+                  <><AppLoader size={22} /> Signing in…</>
+                ) : (
+                  <>Sign in <ArrowRight size={16} /></>
+                )}
+              </button>
+            </form>
+
+            <div className="lx-or"><span>or</span></div>
+
+            <div className="lx-alt">
+              <a href={`${import.meta.env.VITE_API_BASE_URL}/auth/microsoft/login`} className="lx-pill lx-pill-outline">
+                <MicrosoftLogo /> Sign in with Outlook
+              </a>
+              {WHATSAPP_LINK && (
+                <a href={WHATSAPP_LINK} target="_blank" rel="noreferrer" className="lx-pill lx-pill-outline">
+                  <MessageCircle size={16} className="lx-wa-ico" /> Message the Task Assistant
+                </a>
+              )}
+            </div>
+          </div>
+
+          <p className="lx-foot">
+            <ShieldCheck size={14} /> Authorized personnel only · All activity is logged and audited
+          </p>
+        </section>
+      </main>
     </div>
   );
 }
