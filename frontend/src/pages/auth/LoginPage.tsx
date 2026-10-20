@@ -120,6 +120,7 @@ function LoginPage() {
           <nav className="lx-nav-links" aria-label="Site">
             {WHATSAPP_LINK && <a href={WHATSAPP_LINK} target="_blank" rel="noreferrer">WhatsApp Assistant</a>}
             <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms</Link>  
             <button type="button" className="lx-nav-cta" onClick={focusSignIn}>Sign in</button>
           </nav>
         </div>
