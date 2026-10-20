@@ -201,7 +201,7 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
             <Search size={15} aria-hidden="true" />
             <input
               type="search"
-              placeholder="Search"
+              placeholder="Seartch"
               aria-label="Search the menu"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
