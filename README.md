@@ -5,6 +5,12 @@ Millenium Solutions E.A Ltd.'s internal task management system, known around the
 - **Backend:** [backend/](backend/), Node.js + Express 5 + TypeScript, PostgreSQL via Prisma, JWT auth, Socket.io for realtime notifications.
 - **Frontend:** [frontend/](frontend/), React 19 + TypeScript + Vite, Tailwind CSS, React Router, TanStack Query, Zustand
 
+## Demo
+
+<video src="frontend/public/tasks.mp4" controls muted playsinline width="100%"></video>
+
+If the player doesn't load, [watch or download the demo video](frontend/public/tasks.mp4).
+
 ## Features
 
 - **Task logging**: staff log daily work against 12 org verticals (Applications & Databases, Infrastructure, Networking, …), with status, % complete, hours spent, and screenshot/PDF attachments.
