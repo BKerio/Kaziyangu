@@ -236,7 +236,7 @@ function Sidebar({ collapsed: collapsedPref, onToggleCollapse, connected, drawer
                       aria-current={isActive ? 'page' : undefined}
                       title={collapsed && !peek ? item.label : undefined}
                     >
-                      <item.Icon className="nav-icon" size={20} aria-hidden="true" />
+                      <span className="nav-icon-tile" aria-hidden="true"><item.Icon className="nav-icon" size={22} strokeWidth={2.2} /></span>
                       <span className="nav-label">{item.label}</span>
                     </Link>
                   );
