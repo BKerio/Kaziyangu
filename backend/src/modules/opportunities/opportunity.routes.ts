@@ -77,6 +77,7 @@ const baseFields = {
   dateIdentified: z.string().min(1, 'Date identified is required'),
   estimatedValue: z.number().min(0).optional(),
   clientBudget: z.number().min(0).nullable().optional(),
+  probability: z.number().int().min(0).max(100).optional(),
   tenderReference: z.string().optional(),
   submissionDeadline: z.string().optional(),
   description: z.string().optional(),

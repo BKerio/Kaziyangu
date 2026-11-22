@@ -34,6 +34,7 @@ export interface CreateOpportunityInput {
   dateIdentified: string;
   estimatedValue?: number;
   clientBudget?: number | null;
+  probability?: number;
   tenderReference?: string;
   submissionDeadline?: string;
   description?: string;
