@@ -7,10 +7,12 @@
 import {
   Role, TaskVertical, TaskCategory, TaskStatus, AttendanceStatus, WorkMode, ReportStatus, Department,
   OpportunityStage, OpportunityPriority, ActivityType, ReminderChannel, ReminderStatus, Organization,
+  ContactRole, OpportunityTeamRole, DealRegStatus,
 } from '../../generated/prisma/index.js';
 export {
   Role, TaskVertical, TaskCategory, TaskStatus, AttendanceStatus, WorkMode, ReportStatus, Department,
   OpportunityStage, OpportunityPriority, ActivityType, ReminderChannel, ReminderStatus, Organization,
+  ContactRole, OpportunityTeamRole, DealRegStatus,
 };
 
 // ── JWT ───────────────────────────────────────────────────────────────────────

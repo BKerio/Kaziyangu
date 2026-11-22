@@ -325,6 +325,139 @@ export const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string }[] = [
   { value: 'OTHER', label: 'Other' },
 ];
 
+export type ContactRole = 'DECISION_MAKER' | 'INFLUENCER' | 'TECHNICAL' | 'PROCUREMENT' | 'FINANCE' | 'END_USER' | 'CHAMPION' | 'OTHER';
+export type OpportunityTeamRole = 'ACCOUNT_MANAGER' | 'PRESALES' | 'PROJECT_MANAGER' | 'TECHNICAL_LEAD' | 'SUPPORT';
+export type DealRegStatus = 'NOT_REGISTERED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+
+export const CONTACT_ROLE_OPTIONS: { value: ContactRole; label: string }[] = [
+  { value: 'DECISION_MAKER', label: 'Decision maker' },
+  { value: 'INFLUENCER', label: 'Influencer' },
+  { value: 'TECHNICAL', label: 'Technical' },
+  { value: 'PROCUREMENT', label: 'Procurement' },
+  { value: 'FINANCE', label: 'Finance' },
+  { value: 'END_USER', label: 'End user' },
+  { value: 'CHAMPION', label: 'Champion' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+export const TEAM_ROLE_OPTIONS: { value: OpportunityTeamRole; label: string }[] = [
+  { value: 'ACCOUNT_MANAGER', label: 'Account manager' },
+  { value: 'PRESALES', label: 'Presales' },
+  { value: 'PROJECT_MANAGER', label: 'Project manager' },
+  { value: 'TECHNICAL_LEAD', label: 'Technical lead' },
+  { value: 'SUPPORT', label: 'Support' },
+];
+
+export const DEAL_REG_OPTIONS: { value: DealRegStatus; label: string }[] = [
+  { value: 'NOT_REGISTERED', label: 'Not registered' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'REJECTED', label: 'Rejected' },
+  { value: 'EXPIRED', label: 'Expired' },
+];
+
+/** Internal staff member with contact details (deal teams, account managers). */
+export interface StaffContact {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  department?: Department | null;
+  role?: Role;
+}
+
+export interface CustomerContact {
+  id: string;
+  customerId: string;
+  name: string;
+  title?: string | null;
+  department?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  altPhone?: string | null;
+  isPrimary: boolean;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface CustomerOption { id: string; name: string; shortName?: string | null }
+
+export interface Customer extends CustomerOption {
+  industry?: string | null;
+  sector?: string | null;
+  website?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  kraPin?: string | null;
+  notes?: string | null;
+  accountManagerId?: string | null;
+  accountManager?: StaffContact | null;
+  createdAt: string;
+  updatedAt: string;
+  // List roll-ups
+  primaryContact?: CustomerContact | null;
+  openCount?: number;
+  openPipeline?: number;
+  wonValue?: number;
+  _count?: { contacts: number; opportunities: number };
+  // Detail
+  contacts?: CustomerContact[];
+  opportunities?: Opportunity[];
+}
+
+export interface Oem {
+  id: string;
+  name: string;
+  category?: string | null;
+  website?: string | null;
+  partnerManagerName?: string | null;
+  partnerManagerEmail?: string | null;
+  partnerManagerPhone?: string | null;
+  notes?: string | null;
+  dealCount?: number;
+  openCount?: number;
+  openValue?: number;
+  wonCount?: number;
+}
+
+export interface OpportunityOem {
+  id: string;
+  oemId: string;
+  oem: Pick<Oem, 'id' | 'name'> & Partial<Oem>;
+  products?: string | null;
+  value?: number | null;
+  dealRegNumber?: string | null;
+  dealRegStatus: DealRegStatus;
+  dealRegExpiry?: string | null;
+  partnerManagerName?: string | null;
+  partnerManagerEmail?: string | null;
+  partnerManagerPhone?: string | null;
+  notes?: string | null;
+}
+
+export interface OpportunityContactLink {
+  contactId: string;
+  role: ContactRole;
+  contact: CustomerContact;
+}
+
+export interface OpportunityTeamMember {
+  userId: string;
+  role: OpportunityTeamRole;
+  user: StaffContact;
+}
+
+export interface OpportunityNote {
+  id: string;
+  body: string;
+  isPinned: boolean;
+  authorId: string;
+  author: { id: string; name: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OpportunityActivity {
   id: string;
   type: ActivityType;
@@ -339,10 +472,15 @@ export interface Opportunity {
   // 1. Identified
   name: string;
   customerName: string;
+  customerId?: string | null;
+  customer?: (CustomerOption & Partial<Customer>) | null;
   contactPerson?: string | null;
   source?: string | null;
   dateIdentified: string;
   estimatedValue?: number | null;
+  clientBudget?: number | null;
+  tenderReference?: string | null;
+  submissionDeadline?: string | null;
   description?: string | null;
 
   stage: OpportunityStage;
@@ -358,7 +496,7 @@ export interface Opportunity {
 
   // 3. Assigned
   assignedToId?: string | null;
-  assignedTo?: { id: string; name: string } | null;
+  assignedTo?: StaffContact | null;
   followUpDate?: string | null;
 
   // 5. Proposal
@@ -389,7 +527,11 @@ export interface Opportunity {
   updatedAt: string;
 
   activities?: OpportunityActivity[];
-  _count?: { attachments: number };
+  contacts?: OpportunityContactLink[];
+  oems?: OpportunityOem[];
+  team?: OpportunityTeamMember[];
+  notes?: OpportunityNote[];
+  _count?: { attachments: number; notes?: number; contacts?: number; team?: number };
 }
 
 export interface OpportunityAttachment {
@@ -412,8 +554,12 @@ export interface OpportunityStats {
   won: number;
   lost: number;
   pipelineValue: number;
+  weightedPipeline: number;
+  openClientBudget: number;
   wonValue: number;
   winRate: number;
+  activeCustomers: number;
+  byOem: { oemId: string; name: string; openCount: number; openValue: number; wonCount: number }[];
 }
 
 // ── Task Reminders (SMS / Email / WhatsApp) ──────────────────────────────────
@@ -458,7 +604,7 @@ export interface TaskReminder {
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGIN_FAILED' | 'REGISTER';
 export type AuditSubjectType =
   | 'USER' | 'WORK_TASK' | 'TASK_ATTACHMENT' | 'OPPORTUNITY' | 'OPPORTUNITY_ACTIVITY'
-  | 'OPPORTUNITY_ATTACHMENT' | 'OUT_OF_OFFICE' | 'ATTENDANCE' | 'TASK_REPORT' | 'TASK_REMINDER';
+  | 'OPPORTUNITY_ATTACHMENT' | 'OPPORTUNITY_NOTE' | 'CUSTOMER' | 'CUSTOMER_CONTACT' | 'OEM' | 'OUT_OF_OFFICE' | 'ATTENDANCE' | 'TASK_REPORT' | 'TASK_REMINDER';
 
 export const AUDIT_ACTION_OPTIONS: { value: AuditAction; label: string }[] = [
   { value: 'CREATE', label: 'Create' },
@@ -476,6 +622,10 @@ export const AUDIT_SUBJECT_OPTIONS: { value: AuditSubjectType; label: string }[]
   { value: 'OPPORTUNITY', label: 'Opportunity' },
   { value: 'OPPORTUNITY_ACTIVITY', label: 'Opportunity activity' },
   { value: 'OPPORTUNITY_ATTACHMENT', label: 'Opportunity attachment' },
+  { value: 'OPPORTUNITY_NOTE', label: 'Opportunity note' },
+  { value: 'CUSTOMER', label: 'Customer' },
+  { value: 'CUSTOMER_CONTACT', label: 'Customer contact' },
+  { value: 'OEM', label: 'OEM' },
   { value: 'OUT_OF_OFFICE', label: 'Out of office' },
   { value: 'ATTENDANCE', label: 'Attendance' },
   { value: 'TASK_REPORT', label: 'Logbook entry' },

@@ -9,6 +9,8 @@ import { adminRoutes } from './modules/admin/admin.routes.js';
 import { taskRoutes } from './modules/tasks/task.routes.js';
 import { attachmentRoutes } from './modules/attachments/attachment.routes.js';
 import { opportunityRoutes } from './modules/opportunities/opportunity.routes.js';
+import { customerRoutes } from './modules/customers/customer.routes.js';
+import { oemRoutes } from './modules/oems/oem.routes.js';
 import { teamCalendarRoutes } from './modules/team-calendar/team-calendar.routes.js';
 import { reminderRoutes } from './modules/reminders/reminder.routes.js';
 import { campaignRoutes } from './modules/campaigns/campaign.routes.js';
@@ -65,6 +67,8 @@ export function buildApp(ctx: AppContext): Express {
   app.use('/tasks', taskRoutes(ctx));
   app.use('/attachments', attachmentRoutes(ctx));
   app.use('/opportunities', opportunityRoutes(ctx));
+  app.use('/customers', customerRoutes(ctx));
+  app.use('/oems', oemRoutes(ctx));
   app.use('/team-calendar', teamCalendarRoutes(ctx));
   app.use('/reminders', reminderRoutes(ctx));
   app.use('/campaigns', campaignRoutes(ctx));

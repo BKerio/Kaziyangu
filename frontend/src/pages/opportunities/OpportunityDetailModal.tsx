@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Trash2, Plus, Phone, Paperclip, FileText, Download } from 'lucide-react';
+import { X, Trash2, Plus, Phone, Paperclip, FileText, Download, Building2, CalendarClock } from 'lucide-react';
 import AppLoader from '@/components/shared/AppLoader';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -11,10 +11,17 @@ import api from '@/api/client';
 import { confirmDialog } from '@/lib/alert';
 import { opportunityAttachmentFileUrl, uploadOpportunityAttachments } from '@/lib/opportunityAttachments';
 import {
-  ACTIVITY_TYPE_OPTIONS, Opportunity, OpportunityAttachment, PRIORITY_OPTIONS, STAGE_OPTIONS, User,
+  ACTIVITY_TYPE_OPTIONS, Opportunity, OpportunityAttachment, PRIORITY_OPTIONS, STAGE_OPTIONS, StaffContact,
 } from '@/types/api';
-import { stagePillClass, priorityPillClass, stageLabel } from '@/utils/opportunity';
+import {
+  stagePillClass, priorityPillClass, stageLabel, formatKsh, currentValue, daysUntil, toLocalInput, fromLocalInput,
+} from '@/utils/opportunity';
+import { useCustomerOptions } from '@/hooks/useOpportunityOptions';
 import PageLoader from '@/components/shared/PageLoader';
+import ContactsSection from './components/ContactsSection';
+import OemsSection from './components/OemsSection';
+import TeamSection from './components/TeamSection';
+import NotesSection from './components/NotesSection';
 
 const optionalNumber = z.preprocess(
   (v) => (v === '' || v === null || v === undefined ? undefined : v),
@@ -32,6 +39,9 @@ const detailSchema = z.object({
   source: z.string().optional(),
   dateIdentified: z.string().min(1),
   estimatedValue: optionalNumber,
+  clientBudget: optionalNumber,
+  tenderReference: z.string().optional(),
+  submissionDeadline: z.string().optional(),
   description: z.string().optional(),
   stage: z.enum(['NEW', 'QUALIFICATION', 'ASSIGNED', 'ENGAGEMENT', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST']),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
@@ -98,13 +108,77 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
+function SummaryStrip({ opportunity, onOpenCustomer }: { opportunity: Opportunity; onOpenCustomer?: (id: string) => void }) {
+  const value = currentValue(opportunity);
+  const weighted = value != null && opportunity.probability != null ? value * (opportunity.probability / 100) : null;
+  const deadlineIn = daysUntil(opportunity.submissionDeadline);
+  const overBudget = value != null && opportunity.clientBudget != null && value > opportunity.clientBudget;
+  const tile = { padding: '10px 12px', borderRadius: 10, background: 'var(--surface-2)', minWidth: 0 } as const;
+  const lbl = { fontSize: 11, color: 'var(--muted)', fontWeight: 600 } as const;
+  const val = { fontSize: 15, fontWeight: 700, color: 'var(--ink)' } as const;
+
+  return (
+    <div className="col" style={{ gap: 10 }}>
+      <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+        <Building2 size={15} style={{ color: 'var(--red)' }} />
+        {opportunity.customerId && onOpenCustomer ? (
+          <button
+            type="button" onClick={() => onOpenCustomer(opportunity.customerId!)}
+            style={{ border: 0, background: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: 'var(--ink)', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {opportunity.customerName}
+          </button>
+        ) : (
+          <b>{opportunity.customerName}</b>
+        )}
+        {(opportunity.customer?._count?.opportunities ?? 0) > 1 && (
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>· {opportunity.customer!._count!.opportunities} opportunities with this customer</span>
+        )}
+        {(opportunity.oems ?? []).map((o) => <span key={o.id} className="pill pill-blue">{o.oem.name}</span>)}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div style={tile}>
+          <div style={lbl}>Client budget</div>
+          <div style={val}>{formatKsh(opportunity.clientBudget)}</div>
+        </div>
+        <div style={tile}>
+          <div style={lbl}>Current value</div>
+          <div style={{ ...val, color: overBudget ? 'var(--amber)' : val.color }} title={overBudget ? 'Above the client budget' : undefined}>
+            {formatKsh(value)}
+          </div>
+        </div>
+        <div style={tile}>
+          <div style={lbl}>Weighted ({opportunity.probability ?? 0}%)</div>
+          <div style={val}>{formatKsh(weighted)}</div>
+        </div>
+        <div style={tile}>
+          <div style={lbl}>Submission deadline</div>
+          <div className="flex items-center gap-1" style={{ ...val, fontSize: 13.5, color: deadlineIn != null && deadlineIn <= 3 && deadlineIn >= 0 ? 'var(--red)' : val.color }}>
+            {opportunity.submissionDeadline ? (
+              <>
+                <CalendarClock size={13} />
+                {new Date(opportunity.submissionDeadline).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+              </>
+            ) : '-'}
+          </div>
+          {deadlineIn != null && (
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{deadlineIn < 0 ? 'Passed' : deadlineIn === 0 ? 'Today' : `In ${deadlineIn} day${deadlineIn === 1 ? '' : 's'}`}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted, onOpenCustomer }: {
   id: string;
-  staff: User[];
+  staff: StaffContact[];
   onClose: () => void;
   onChanged: () => void;
   onDeleted: () => void;
+  onOpenCustomer?: (customerId: string) => void;
 }) {
+  const { data: customerOptions } = useCustomerOptions();
   const { addNotification } = useNotificationStore();
   const role = useAuthStore((s) => s.user?.role);
   const token = useAuthStore((s) => s.token);
@@ -130,6 +204,9 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
           source: opportunity.source ?? '',
           dateIdentified: opportunity.dateIdentified.slice(0, 10),
           estimatedValue: opportunity.estimatedValue ?? undefined,
+          clientBudget: opportunity.clientBudget ?? undefined,
+          tenderReference: opportunity.tenderReference ?? '',
+          submissionDeadline: toLocalInput(opportunity.submissionDeadline),
           description: opportunity.description ?? '',
           stage: opportunity.stage,
           priority: opportunity.priority,
@@ -166,9 +243,15 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
 
   const saveMutation = useMutation({
     mutationFn: (values: DetailForm) => {
-      const { isGenuine, assignedToId, ...rest } = values;
+      const { isGenuine, assignedToId, submissionDeadline, ...rest } = values;
       return api.patch(`/opportunities/${id}`, {
         ...rest,
+        // Keep the same customer account unless the name was actually changed.
+        ...(opportunity?.customerId && rest.customerName === opportunity.customerName
+          ? { customerName: undefined }
+          : {}),
+        submissionDeadline: fromLocalInput(submissionDeadline),
+        clientBudget: rest.clientBudget ?? null,
         assignedToId: assignedToId || undefined,
         isGenuine: isGenuine === '' ? undefined : isGenuine === 'true',
       });
@@ -268,7 +351,7 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(10,20,15,0.45)' }}>
-      <div className="card w-full" style={{ maxWidth: 720, maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="card w-full" style={{ maxWidth: 900, maxHeight: '94vh', overflowY: 'auto' }}>
         <div className="card-head" style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 }}>
           <span className="card-title">{opportunity ? opportunity.name : 'Opportunity'}</span>
           <div className="flex items-center gap-1">
@@ -291,6 +374,8 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
           <div className="card-pad"><PageLoader height={320} /></div>
         ) : (
           <form className="card-pad col" style={{ gap: 20 }} onSubmit={handleSubmit((v) => saveMutation.mutate(v))}>
+            <SummaryStrip opportunity={opportunity} onOpenCustomer={onOpenCustomer} />
+
             {/* 1. Identified */}
             <section className="col" style={{ gap: 10 }}>
               <h4 className="text-xs font-bold uppercase" style={{ color: 'var(--muted)', letterSpacing: '.06em' }}>1. Opportunity Identified</h4>
@@ -302,27 +387,39 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
                 </div>
                 <div className="field">
                   <label className="label" htmlFor="d-customer">Customer / organization</label>
-                  <input id="d-customer" className="input" {...register('customerName')} />
+                  <input id="d-customer" className="input" list="d-customer-options" {...register('customerName')} />
+                  <datalist id="d-customer-options">
+                    {customerOptions?.map((c) => <option key={c.id} value={c.name}>{c.shortName ?? ''}</option>)}
+                  </datalist>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Changing this moves the deal to another (or a new) customer account.</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="field">
-                  <label className="label" htmlFor="d-contact">Contact person</label>
-                  <input id="d-contact" className="input" {...register('contactPerson')} />
+                  <label className="label" htmlFor="d-budget-amt">Client budget (KSh)</label>
+                  <input id="d-budget-amt" className="input" type="number" min={0} step="1000" {...register('clientBudget')} />
+                </div>
+                <div className="field">
+                  <label className="label" htmlFor="d-value">Estimated value (KSh)</label>
+                  <input id="d-value" className="input" type="number" min={0} step="1000" {...register('estimatedValue')} />
                 </div>
                 <div className="field">
                   <label className="label" htmlFor="d-source">Source</label>
                   <input id="d-source" className="input" {...register('source')} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="field">
+                  <label className="label" htmlFor="d-tender">Tender / RFQ reference</label>
+                  <input id="d-tender" className="input" placeholder="e.g. KPLC/1TD/OT/045/2026" {...register('tenderReference')} />
+                </div>
+                <div className="field">
+                  <label className="label" htmlFor="d-deadline">Submission deadline</label>
+                  <input id="d-deadline" className="input" type="datetime-local" {...register('submissionDeadline')} />
+                </div>
                 <div className="field">
                   <label className="label" htmlFor="d-date">Date identified</label>
                   <input id="d-date" className="input" type="date" {...register('dateIdentified')} />
-                </div>
-                <div className="field">
-                  <label className="label" htmlFor="d-value">Estimated value (KSh)</label>
-                  <input id="d-value" className="input" type="number" min={0} step="1000" {...register('estimatedValue')} />
                 </div>
               </div>
               <div className="field">
@@ -344,6 +441,9 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
                 </div>
               </div>
             </section>
+
+            <ContactsSection opportunity={opportunity} />
+            <OemsSection opportunity={opportunity} />
 
             {/* 2. Qualification */}
             <section className="col" style={{ gap: 10, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
@@ -368,8 +468,8 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="field">
-                  <label className="label" htmlFor="d-budget">Budget</label>
-                  <input id="d-budget" className="input" placeholder="e.g. Confirmed, KSh 5M" {...register('budgetConfirmed')} />
+                  <label className="label" htmlFor="d-budget">Budget status</label>
+                  <input id="d-budget" className="input" placeholder="e.g. Confirmed, in procurement plan" {...register('budgetConfirmed')} />
                 </div>
                 <div className="field">
                   <label className="label" htmlFor="d-timeline">Expected timeline</label>
@@ -388,7 +488,7 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
               <h4 className="text-xs font-bold uppercase" style={{ color: 'var(--muted)', letterSpacing: '.06em' }}>3. Assigned</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div className="field">
-                  <label className="label" htmlFor="d-assignee">Salesperson / team member</label>
+                  <label className="label" htmlFor="d-assignee">Lead account manager</label>
                   <select id="d-assignee" className="eoc-select" {...register('assignedToId')}>
                     <option value="">Unassigned</option>
                     {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -400,6 +500,8 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
                 </div>
               </div>
             </section>
+
+            <TeamSection opportunity={opportunity} staff={staff} />
 
             {/* Documents */}
             <section className="col" style={{ gap: 10, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
@@ -514,6 +616,8 @@ function OpportunityDetailModal({ id, staff, onClose, onChanged, onDeleted }: {
                 </button>
               </div>
             </section>
+
+            <NotesSection opportunity={opportunity} />
 
             {/* 5. Proposal / Quotation */}
             <section className="col" style={{ gap: 10, borderTop: '1px solid var(--border)', paddingTop: 16 }}>

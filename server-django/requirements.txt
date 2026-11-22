@@ -1,0 +1,10 @@
+Django>=6.0,<6.1
+psycopg2-binary>=2.9
+dj-database-url>=2.3
+python-dotenv>=1.0
+PyJWT>=2.9
+bcrypt>=4.2
+cryptography>=43
+httpx>=0.28
+python-socketio>=5.11
+uvicorn[standard]>=0.30

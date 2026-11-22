@@ -55,6 +55,36 @@ enum OpportunityPriority {
   CRITICAL
 }
 
+// The part a customer-side contact plays in a specific deal.
+enum ContactRole {
+  DECISION_MAKER
+  INFLUENCER
+  TECHNICAL
+  PROCUREMENT
+  FINANCE
+  END_USER
+  CHAMPION
+  OTHER
+}
+
+// What an internal team member does on an opportunity.
+enum OpportunityTeamRole {
+  ACCOUNT_MANAGER
+  PRESALES
+  PROJECT_MANAGER
+  TECHNICAL_LEAD
+  SUPPORT
+}
+
+// OEM deal registration lifecycle (HPE, Hikvision, Cisco ... partner portals).
+enum DealRegStatus {
+  NOT_REGISTERED
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
 // The engagement-stage touchpoints called out in the tracker spec.
 enum ActivityType {
   CALL
@@ -181,21 +211,21 @@ enum Organization {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String      @id @default(uuid())
-  email        String      @unique
-  passwordHash String      @map("password_hash")
-  name         String
-  phone        String?
+  id             String      @id @default(uuid())
+  email          String      @unique
+  passwordHash   String      @map("password_hash")
+  name           String
+  phone          String?
   // WhatsApp's business-scoped user id ("KE.1234…") - how the bot recognises
   // someone who uses a WhatsApp username and hides their phone number. Saved
   // automatically whenever they message with their number visible, or after
   // they confirm a one-time code sent to their registered number.
-  whatsappUserId String?   @unique @map("whatsapp_user_id")
-  role         Role        @default(STAFF)
-  isActive     Boolean     @default(true) @map("is_active")
-  department   Department? // Org department - set for staff and attachees alike
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  whatsappUserId String?     @unique @map("whatsapp_user_id")
+  role           Role        @default(STAFF)
+  isActive       Boolean     @default(true) @map("is_active")
+  department     Department? // Org department - set for staff and attachees alike
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
   // ── Attachee profile fields (only populated when role = ATTACHEE) ──────────
   registrationNo  String?   @map("registration_no")
@@ -209,20 +239,24 @@ model User {
   supervisorId String? @map("supervisor_id")
   supervisor   User?   @relation("SupervisorOfAttachee", fields: [supervisorId], references: [id])
 
-  tasks               WorkTask[]
+  tasks                          WorkTask[]
   uploadedAttachments            TaskAttachment[]
   uploadedOpportunityAttachments OpportunityAttachment[]
-  auditLogs           AuditLog[]
-  attendanceRecords   Attendance[] @relation("AttendanceOfAttachee")
-  taskReports         TaskReport[] @relation("ReportsOfAttachee")
-  supervisedAttachees User[]       @relation("SupervisorOfAttachee")
+  auditLogs                      AuditLog[]
+  attendanceRecords              Attendance[]            @relation("AttendanceOfAttachee")
+  taskReports                    TaskReport[]            @relation("ReportsOfAttachee")
+  supervisedAttachees            User[]                  @relation("SupervisorOfAttachee")
 
-  opportunitiesAssigned Opportunity[]         @relation("OpportunityAssignee")
-  opportunitiesCreated  Opportunity[]         @relation("OpportunityCreatedBy")
-  loggedActivities      OpportunityActivity[] @relation("ActivityLoggedBy")
+  opportunitiesAssigned Opportunity[]           @relation("OpportunityAssignee")
+  opportunitiesCreated  Opportunity[]           @relation("OpportunityCreatedBy")
+  loggedActivities      OpportunityActivity[]   @relation("ActivityLoggedBy")
+  opportunityTeams      OpportunityTeamMember[]
+  opportunityNotes      OpportunityNote[]
+  customersCreated      Customer[]              @relation("CustomerCreatedBy")
+  customersManaged      Customer[]              @relation("CustomerAccountManager")
   outOfOfficeDays       OutOfOffice[]
   taskReminders         TaskReminder[]
-  campaignsCreated      Campaign[]            @relation("CampaignCreatedBy")
+  campaignsCreated      Campaign[]              @relation("CampaignCreatedBy")
 
   microsoftAccount MicrosoftAccount?
 
@@ -333,13 +367,24 @@ model Opportunity {
   id String @id @default(uuid())
 
   // ── 1. Opportunity Identified ───────────────────────────────────────────
-  name           String
-  customerName   String   @map("customer_name")
-  contactPerson  String?  @map("contact_person")
-  source         String?
-  dateIdentified DateTime @map("date_identified") @db.Date
-  estimatedValue Float?   @map("estimated_value")
-  description    String?  @db.Text
+  name               String
+  // Denormalised copy of customer.name - kept in sync by the service so
+  // search and rows created before Customer existed still work.
+  customerName       String    @map("customer_name")
+  customerId         String?   @map("customer_id")
+  customer           Customer? @relation(fields: [customerId], references: [id])
+  // Legacy free-text contact; new deals use OpportunityContact.
+  contactPerson      String?   @map("contact_person")
+  source             String?
+  dateIdentified     DateTime  @map("date_identified") @db.Date
+  estimatedValue     Float?    @map("estimated_value")
+  // What the client has set aside for this - often from a published
+  // procurement plan / tender budget.
+  clientBudget       Float?    @map("client_budget")
+  // Tender / RFQ / RFP reference (e.g. KPLC/1TD/OT/045/2026) and deadline.
+  tenderReference    String?   @map("tender_reference")
+  submissionDeadline DateTime? @map("submission_deadline")
+  description        String?   @db.Text
 
   stage    OpportunityStage    @default(NEW)
   priority OpportunityPriority @default(MEDIUM)
@@ -388,10 +433,165 @@ model Opportunity {
 
   activities  OpportunityActivity[]
   attachments OpportunityAttachment[]
+  contacts    OpportunityContact[]
+  oems        OpportunityOem[]
+  team        OpportunityTeamMember[]
+  notes       OpportunityNote[]
 
   @@index([stage])
   @@index([assignedToId])
+  @@index([customerId])
   @@map("opportunities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer accounts (e.g. KPLC) - one customer, many opportunities and
+// contacts. Contacts belong to the customer and are linked into individual
+// deals with a deal-specific role.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String  @id @default(uuid())
+  name      String  @unique
+  // The name people actually use - "KPLC" for Kenya Power & Lighting Co.
+  shortName String? @map("short_name")
+  industry  String? // Energy, Banking, Government, Telco ...
+  sector    String? // Public / Private / NGO
+  website   String?
+  email     String?
+  phone     String?
+  address   String?
+  kraPin    String? @map("kra_pin")
+  notes     String? @db.Text
+
+  // Internal owner of the overall account relationship.
+  accountManagerId String? @map("account_manager_id")
+  accountManager   User?   @relation("CustomerAccountManager", fields: [accountManagerId], references: [id])
+
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation("CustomerCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  contacts      CustomerContact[]
+  opportunities Opportunity[]
+
+  @@map("customers")
+}
+
+model CustomerContact {
+  id         String  @id @default(uuid())
+  name       String
+  title      String? // e.g. "ICT Manager"
+  department String?
+  email      String?
+  phone      String?
+  altPhone   String? @map("alt_phone")
+  isPrimary  Boolean @default(false) @map("is_primary")
+  notes      String? @db.Text
+
+  customerId String   @map("customer_id")
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  opportunities OpportunityContact[]
+
+  @@index([customerId])
+  @@map("customer_contacts")
+}
+
+model OpportunityContact {
+  opportunityId String          @map("opportunity_id")
+  opportunity   Opportunity     @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  contactId     String          @map("contact_id")
+  contact       CustomerContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  role          ContactRole     @default(OTHER)
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  @@id([opportunityId, contactId])
+  @@index([contactId])
+  @@map("opportunity_contacts")
+}
+
+// OEM / vendor catalogue - HPE, Hikvision, Cisco, Dell, Fortinet ...
+model Oem {
+  id                  String  @id @default(uuid())
+  name                String  @unique
+  category            String? // Servers & Storage, CCTV / Security, Networking ...
+  website             String?
+  // Default channel / partner manager at the OEM.
+  partnerManagerName  String? @map("partner_manager_name")
+  partnerManagerEmail String? @map("partner_manager_email")
+  partnerManagerPhone String? @map("partner_manager_phone")
+  notes               String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  opportunities OpportunityOem[]
+
+  @@map("oems")
+}
+
+// An OEM in a specific deal, with that deal's registration details and the
+// OEM-side person handling it.
+model OpportunityOem {
+  id String @id @default(uuid())
+
+  opportunityId String      @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  oemId         String      @map("oem_id")
+  oem           Oem         @relation(fields: [oemId], references: [id])
+
+  products            String?       @db.Text // e.g. "ProLiant DL380 Gen11 x4"
+  value               Float? // this OEM's share of the deal
+  dealRegNumber       String?       @map("deal_reg_number")
+  dealRegStatus       DealRegStatus @default(NOT_REGISTERED) @map("deal_reg_status")
+  dealRegExpiry       DateTime?     @map("deal_reg_expiry") @db.Date
+  partnerManagerName  String?       @map("partner_manager_name")
+  partnerManagerEmail String?       @map("partner_manager_email")
+  partnerManagerPhone String?       @map("partner_manager_phone")
+  notes               String?       @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([opportunityId, oemId])
+  @@index([oemId])
+  @@map("opportunity_oems")
+}
+
+// Internal people on the deal. Contact details come from the User record.
+model OpportunityTeamMember {
+  opportunityId String              @map("opportunity_id")
+  opportunity   Opportunity         @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  userId        String              @map("user_id")
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role          OpportunityTeamRole @default(ACCOUNT_MANAGER)
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  @@id([opportunityId, userId])
+  @@index([userId])
+  @@map("opportunity_team_members")
+}
+
+model OpportunityNote {
+  id       String  @id @default(uuid())
+  body     String  @db.Text
+  isPinned Boolean @default(false) @map("is_pinned")
+
+  opportunityId String      @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  authorId      String      @map("author_id")
+  author        User        @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([opportunityId])
+  @@map("opportunity_notes")
 }
 
 // A logged engagement touchpoint (call, meeting, site visit, email, etc.)
