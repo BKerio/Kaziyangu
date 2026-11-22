@@ -171,7 +171,7 @@ function OemsSection({ opportunity }: { opportunity: Opportunity }) {
       </SectionHeading>
 
       {links.length === 0 && editing === null && (
-        <p className="text-xs" style={{ color: 'var(--muted)' }}>No OEMs on this deal yet — add the vendors you're quoting (e.g. HPE, Hikvision).</p>
+        <p className="text-xs" style={{ color: 'var(--muted)' }}>No OEMs on this deal yet. Add the vendors you're quoting (e.g. HPE, Hikvision).</p>
       )}
 
       {links.map((l) => {

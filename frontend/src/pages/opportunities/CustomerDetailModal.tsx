@@ -269,7 +269,7 @@ function CustomerDetailModal({ id, staff, onClose, onOpenOpportunity, onNewOppor
                             {c.name}
                             {c.isPrimary && <Star size={11} style={{ color: 'var(--gold)' }} fill="currentColor" aria-label="Primary contact" />}
                           </div>
-                          <div style={{ color: 'var(--muted)', fontSize: 11.5 }}>{[c.title, c.department].filter(Boolean).join(' · ') || '—'}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 11.5 }}>{[c.title, c.department].filter(Boolean).join(' · ') || 'No title'}</div>
                         </div>
                         <div className="flex gap-1">
                           <button type="button" className="icon-btn" title="Edit" onClick={() => { setContact(contactDraft(c)); setContactEditing(c.id); }}><Pencil size={12} /></button>

@@ -578,7 +578,7 @@ function OpportunityFormModal({ staff, onClose, onCreated, defaultCustomer }: {
               <label className="label" htmlFor="op-oem">{quickOems.length ? 'Another OEM' : 'OEM'}</label>
               <div className="flex gap-2">
                 <input
-                  id="op-oem" className="input" list="op-oem-options" placeholder="Type a vendor, e.g. Stages — Enter to add"
+                  id="op-oem" className="input" list="op-oem-options" placeholder="Type a vendor, e.g. Stages, then press Enter"
                   value={oemInput} onChange={(e) => setOemInput(e.target.value)} onKeyDown={onOemKey}
                 />
                 <button type="button" className="btn btn-soft" onClick={addTypedOem} disabled={!oemInput.trim()}>

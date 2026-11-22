@@ -49,7 +49,7 @@ function NotesSection({ opportunity }: { opportunity: Opportunity }) {
       <div className="col" style={{ gap: 6 }}>
         <textarea
           className="eoc-textarea" rows={2} value={body} onChange={(e) => setBody(e.target.value)}
-          placeholder="Add a note — meeting outcome, client concern, next step… (Ctrl+Enter to save)"
+          placeholder="Add a note: meeting outcome, client concern, next step… (Ctrl+Enter to save)"
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && body.trim()) addMutation.mutate(undefined); }}
         />
         <div className="flex" style={{ justifyContent: 'flex-end' }}>

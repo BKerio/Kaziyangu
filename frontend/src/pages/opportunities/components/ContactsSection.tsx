@@ -77,7 +77,7 @@ function ContactsSection({ opportunity }: { opportunity: Opportunity }) {
                   {l.contact.isPrimary && <Star size={11} style={{ color: 'var(--gold)' }} fill="currentColor" aria-label="Primary contact" />}
                 </div>
                 <div style={{ color: 'var(--muted)', fontSize: 11.5 }}>
-                  {[l.contact.title, l.contact.department].filter(Boolean).join(' · ') || '—'}
+                  {[l.contact.title, l.contact.department].filter(Boolean).join(' · ') || 'No title'}
                 </div>
               </div>
               <button
@@ -107,7 +107,7 @@ function ContactsSection({ opportunity }: { opportunity: Opportunity }) {
               <label className="label" htmlFor="c-existing">Contact at {opportunity.customer?.name}</label>
               <select id="c-existing" className="eoc-select" value={contactId} onChange={(e) => setContactId(e.target.value)}>
                 <option value="">Select a contact…</option>
-                {available.map((c) => <option key={c.id} value={c.id}>{c.name}{c.title ? ` — ${c.title}` : ''}</option>)}
+                {available.map((c) => <option key={c.id} value={c.id}>{c.name}{c.title ? `, ${c.title}` : ''}</option>)}
               </select>
             </div>
           ) : (
